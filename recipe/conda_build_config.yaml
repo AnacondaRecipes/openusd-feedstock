@@ -1,7 +1,11 @@
-# metal is required so the minimum macos version is 11.00 see
-# https://github.com/conda-forge/staged-recipes/pull/29501#issue-2940521966
-c_stdlib_version:         # [osx and x86_64]
-  - "11.0"                # [osx and x86_64]
-# Workaround for https://github.com/conda-forge/opencv-feedstock/issues/493
-MACOSX_SDK_VERSION:       # [osx]
-  - 15.5                  # [osx]
+# # metal is required so the minimum macos version is 11.00 see
+# # https://github.com/conda-forge/staged-recipes/pull/29501#issue-2940521966
+# c_stdlib_version:         # [osx and x86_64]
+#   - "11.0"                # [osx and x86_64]
+
+# Needs minimum macOS SDK 15
+CONDA_BUILD_SYSROOT:                                       # [osx]
+  - /Library/Developer/CommandLineTools/SDKs/MacOSX15.sdk  # [osx and arm64]
+
+MACOSX_DEPLOYMENT_TARGET:   # [osx]
+  - 15.0                    # [osx and arm64]
