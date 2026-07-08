@@ -1,0 +1,109 @@
+{% set name = "openusd" %}
+{% set version = "26.05" %}
+
+package:
+  name: {{ name }}
+  version: {{ version }}
+
+source:
+  url: https://github.com/PixarAnimationStudios/OpenUSD/archive/refs/tags/v{{ version }}.tar.gz
+  sha256: bf514f62ac9508d3c5b121dc1107f3b29bf3c954473b9b0bf8324b7cf04c64c1
+  patches:
+    - link_python_to_executables.patch
+    - add_pxr_install_dll_in_bin.patch
+    # Fix https://github.com/conda-forge/openusd-feedstock/issues/11
+    - 3759.patch
+    - remove_hardcoded_prefix.patch
+    # Explicitly include <tbb/version.h> so TBB_INTERFACE_VERSION_MAJOR is
+    # defined when selecting the oneTBB task_group backend. Recent oneTBB
+    # (the "tbb 2023" migration) no longer defines it via <tbb/blocked_range.h>,
+    # which made the workTBB backend fall back to the removed legacy tbb::task API.
+    - fix_tbb_version_macro.patch
+
+build:
+  number: 0
+  run_exports:
+    - {{ pin_subpackage(name, max_pin='x.x') }}
+
+requirements:
+  build:
+    - {{ stdlib('c') }}
+    - {{ compiler('c') }}
+    - {{ compiler('cxx') }}
+    - ninja-base
+    - cmake >=3.26
+  host:
+    - libgl-devel      # [linux]
+    - libglx-devel     # [linux]
+    - xorg-libxrandr   # [linux]
+    - glfw
+    - tbb-devel
+    - libopensubdiv
+    - python
+    - jinja2
+    - pyside6
+    - pyopengl
+  run:
+    - python
+    # Without tbb-devel, CMake's find_package(pxr REQUIRED) fails.
+    # Furthermore, openusd exposes internal header-only symbols of tbb in its
+    # public headers/public symbols, so even if tbb itself is ABI stable, we
+    # need to pin the major.minor version of tbb-devel to ensure that the
+    # symbols contained in the library match what downstream consumers expect.
+    # See https://github.com/conda-forge/openusd-feedstock/issues/9
+    - {{ pin_compatible('tbb-devel', max_pin='x.x') }}
+    # Required by usdview
+    - pyside6
+    - pyopengl
+
+test:
+  files:
+    - openusd_plugins_sanity_check.py
+  requires:
+    - cmake-package-check
+    - c-compiler
+    - cxx-compiler
+    - pip
+  imports:
+    - pxr
+    - pxr.Usd
+    - pxr.UsdGeom
+  commands:
+    # package_contents: include
+    - test -f $PREFIX/include/pxr/pxr.h                # [not win]
+    - if not exist %PREFIX%\Library\include\pxr\pxr.h exit 1  # [win]
+    # package_contents: lib
+    - test -f $PREFIX/lib/libusd_usd.so                # [linux]
+    - test -f $PREFIX/lib/libusd_usd.dylib             # [osx]
+    - if not exist %PREFIX%\Library\bin\usd_usd.dll exit 1    # [win]
+    # script checks
+    - cmake-package-check pxr
+    - python openusd_plugins_sanity_check.py 40
+    - usdInitSchema --help
+    - usdview --help
+    - pip list | findstr "usd-core"                    # [win]
+    - test $(pip list | grep usd-core | tr -s " " | grep ${PKG_VERSION//\.0/.} | wc -l) -eq 1  # [not win]
+
+about:
+  home: https://github.com/PixarAnimationStudios/OpenUSD
+  # The main openusd license is the Tomorrow Open Source Technology License 1.0
+  # (see https://forum.aousd.org/t/upcoming-openusd-license-update/1561).
+  # The license is not OSI-approved and has no official SPDX identifier, so we
+  # use LicenseRef-Tomorrow-Open-Source-Technology-License-1.0. openusd vendors
+  # several other libraries; all their licenses are listed in LICENSE.txt.
+  license: LicenseRef-Tomorrow-Open-Source-Technology-License-1.0 AND Apache-2.0 AND MIT AND BSD-2-Clause AND BSD-3-Clause AND JSON AND BSL-1.0
+  license_file: LICENSE.txt
+  license_family: Other
+  summary: An open-source 3D framework for real-time, collaborative scene description and asset interchange.
+  description: |
+    OpenUSD (Universal Scene Description) is a powerful engine for building and
+    interchanging complex 3D scenes. Its non-destructive layering system lets
+    multiple teams collaborate on geometry, materials, and physics simultaneously.
+    This makes it the modern standard for scalable 3D workflows across animation,
+    digital twins, and robotics.
+
+extra:
+  recipe-maintainers:
+    - oursland
+    - traversaro
+    - onurbingol
