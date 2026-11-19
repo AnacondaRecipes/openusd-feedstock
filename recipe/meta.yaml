@@ -43,11 +43,11 @@ requirements:
     # (cross-python_{{ target_platform }}, python, pyside6 on
     # build_platform != target_platform) are not needed.
   host:
-    - glfw
+    - glfw {{ glfw }}
     - jinja2
     - libgl-devel  # [linux]
     - libglx-devel  # [linux]
-    - libopensubdiv
+    - libopensubdiv {{ libopensubdiv }}  # analint: host_section_needs_exact_pinnings
     # Anaconda: PySide6 is a build input (pyside6-uic generates the usdview UI
     # modules, and the usdviewq tests import pxr.Usdviewq). PyOpenGL is not: it
     # is only imported when usdview actually renders, so it is a run dependency
@@ -118,11 +118,11 @@ outputs:
         - cmake >=3.26
         - ninja-base
       host:
-        - glfw
+        - glfw {{ glfw }}
         - jinja2
         - libgl-devel  # [linux]
         - libglx-devel  # [linux]
-        - libopensubdiv
+        - libopensubdiv {{ libopensubdiv }}  # analint: host_section_needs_exact_pinnings
         # Anaconda: PySide6 is required at build time because __init__.py imports
         # .qt, which usdviewq-generated modules come from. PyOpenGL is not
         # needed to generate the .py files, only to render usdview at runtime.
@@ -323,8 +323,7 @@ outputs:
         - {{ pin_subpackage("openusd-usdview", exact=True) }}  # [not (win and arm64)]
     test:
       files:
-        recipe:
-          - openusd_plugins_sanity_check.py
+        - openusd_plugins_sanity_check.py
       commands:
         # Loading every registered plugin needs the full install (C++ libraries,
         # python bindings and their resources), which is what this metapackage is.
@@ -348,8 +347,10 @@ outputs:
         - python
         - {{ pin_subpackage("openusd-python", exact=True) }}
     test:
-      commands:
-        - python -c "import pxr; from pxr import Usd, UsdGeom"
+      imports:
+        - pxr
+        - pxr.Usd
+        - pxr.UsdGeom
 
 about:
   # The main openusd license is the Tomorrow Open Source Technology License 1.0 (see https://forum.aousd.org/t/upcoming-openusd-license-update/1561)
@@ -374,7 +375,7 @@ about:
 
     The top-level openusd-split package only hosts the build and is not meant
     to be installed.
-  homepage: https://github.com/PixarAnimationStudios/OpenUSD
+  home: https://github.com/PixarAnimationStudios/OpenUSD
   dev_url: https://github.com/PixarAnimationStudios/OpenUSD
   doc_url: https://openusd.org/release/index.html
 
