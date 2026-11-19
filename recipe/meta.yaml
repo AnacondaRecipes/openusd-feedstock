@@ -1,49 +1,12 @@
 {% set version = "26.08" %}
 
-# Anaconda: on Windows the tools and the DLLs are installed into Library\bin,
-# everywhere else into bin/.
-{% set bindir = "Library/bin" if target_platform.startswith("win") else "bin" %}
-
-# `usd-core` is the PyPI name of the python bindings and drops the trailing zero
-# of OpenUSD's version (26.08 -> 26.8). build.sh/bld.bat write the matching
-# dist-info directory, which is what makes `pip list` report usd-core.
-{% set usd_core_version = version.replace(".0", ".") %}
-
-# OpenUSD installs these as plain python scripts (they are not python entry
-# points), together with a .cmd wrapper on Windows (see pxr_library_install_scripts
-# in cmake/macros/Public.cmake). They need the pxr python package, so they belong
-# to the openusd-tools output, together with the C++ tools listed below.
-{% set py_tools = [
-    "hdGenSchema",
-    "usddiff",
-    "usddumpcrate",
-    "usdedit",
-    "usdfixbrokenpixarschemas",
-    "usdGenSchema",
-    "usdgenschemafromsdr",
-    "usdInitSchema",
-    "usdmeasureperformance",
-    "usdrecord",
-    "usdresolve",
-    "usdstitch",
-    "usdstitchclips",
-    "usdupdatecrate",
-] %}
-{% set usdview_tools = ["usdview", "testusdview"] %}
-
-# The C++ command line tools (bin/<name> on unix, Library\bin\<name>.exe on
-# Windows). They only need the pxr libraries, but they are packaged together with
-# the python based tools so that `usdcat`, `usddiff`, `usdrecord`, ... all come
-# from one openusd-tools package.
-{% set cpp_tools = [
-    "sdfdump",
-    "sdffilter",
-    "usdcat",
-    "usdchecker",
-    "usdtree",
-    "usdzip",
-] %}
-{% set cli_tools = cpp_tools + py_tools %}
+# The python bindings are published on PyPI as `usd-core`, which drops the
+# trailing zero of the OpenUSD version (26.08 -> 26.8). build.sh/bld.bat write a
+# matching dist-info directory so that pip and other python tooling see the
+# module under that name, and the `usd-core` metapackage gives it a conda
+# counterpart. The value is a literal rather than version.replace(...) because the
+# recipe parser used for PBP graph generation does not evaluate Jinja expressions.
+{% set usd_core_version = "26.8" %}
 
 package:
   # Anaconda: split-recipe convention. The top-level package only hosts the
@@ -124,13 +87,29 @@ outputs:
         - Lib/site-packages/pxr/**/*  # [win]
         - "Lib/site-packages/usd_core-*.dist-info/*"  # [win]
         - "Lib/site-packages/usd_core-*.dist-info/**/*"  # [win]
-        # command line tools -> openusd-tools / openusd-usdview
-{%- for tool in cli_tools + usdview_tools %}
-        - {{ bindir }}/{{ tool }}
-        - {{ bindir }}/{{ tool }}.cmd
-        - {{ bindir }}/{{ tool }}.exe  # [win]
-{%- endfor %}
-        - {{ bindir }}/usd  # [win]
+        # command line tools -> openusd-tools / openusd-usdview. On unix bin/
+        # holds nothing but the tools; on Windows Library/bin also holds the
+        # DLLs and the plugin resources, so the tools are listed explicitly.
+        - bin/*  # [unix]
+        - Library/bin/*.cmd  # [win]
+        - Library/bin/*.exe  # [win]
+        - Library/bin/hdGenSchema  # [win]
+        - Library/bin/testusdview  # [win]
+        - Library/bin/usd  # [win]
+        - Library/bin/usddiff  # [win]
+        - Library/bin/usddumpcrate  # [win]
+        - Library/bin/usdedit  # [win]
+        - Library/bin/usdfixbrokenpixarschemas  # [win]
+        - Library/bin/usdGenSchema  # [win]
+        - Library/bin/usdgenschemafromsdr  # [win]
+        - Library/bin/usdInitSchema  # [win]
+        - Library/bin/usdmeasureperformance  # [win]
+        - Library/bin/usdrecord  # [win]
+        - Library/bin/usdresolve  # [win]
+        - Library/bin/usdstitch  # [win]
+        - Library/bin/usdstitchclips  # [win]
+        - Library/bin/usdupdatecrate  # [win]
+        - Library/bin/usdview  # [win]
     requirements:
       build:
         - {{ stdlib("c") }}
@@ -239,15 +218,32 @@ outputs:
     # bindings, so the package depends on openusd-python.
     files:
       include:
-{%- for tool in cpp_tools %}
-        - {{ bindir }}/{{ tool }}  # [unix]
-        - {{ bindir }}/{{ tool }}.exe  # [win]
-{%- endfor %}
-{%- for tool in py_tools %}
-        - {{ bindir }}/{{ tool }}
-        - {{ bindir }}/{{ tool }}.cmd
-{%- endfor %}
-        - {{ bindir }}/usd  # [win]
+        - bin/*  # [unix]
+        - Library/bin/*.cmd  # [win]
+        - Library/bin/*.exe  # [win]
+        - Library/bin/hdGenSchema  # [win]
+        - Library/bin/usd  # [win]
+        - Library/bin/usddiff  # [win]
+        - Library/bin/usddumpcrate  # [win]
+        - Library/bin/usdedit  # [win]
+        - Library/bin/usdfixbrokenpixarschemas  # [win]
+        - Library/bin/usdGenSchema  # [win]
+        - Library/bin/usdgenschemafromsdr  # [win]
+        - Library/bin/usdInitSchema  # [win]
+        - Library/bin/usdmeasureperformance  # [win]
+        - Library/bin/usdrecord  # [win]
+        - Library/bin/usdresolve  # [win]
+        - Library/bin/usdstitch  # [win]
+        - Library/bin/usdstitchclips  # [win]
+        - Library/bin/usdupdatecrate  # [win]
+      exclude:
+        # usdview and its test harness belong to openusd-usdview
+        - bin/usdview  # [unix]
+        - bin/testusdview  # [unix]
+        - Library/bin/usdview  # [win]
+        - Library/bin/usdview.cmd  # [win]
+        - Library/bin/testusdview  # [win]
+        - Library/bin/testusdview.cmd  # [win]
     requirements:
       # Anaconda: python is a build input and a run dependency so that this
       # output gets a python specific build string, like openusd-python.
@@ -285,10 +281,12 @@ outputs:
         - lib/python*/site-packages/pxr/Usdviewq/**/*
         - Lib/site-packages/pxr/Usdviewq/*  # [win]
         - Lib/site-packages/pxr/Usdviewq/**/*  # [win]
-{%- for tool in usdview_tools %}
-        - {{ bindir }}/{{ tool }}
-        - {{ bindir }}/{{ tool }}.cmd
-{%- endfor %}
+        - bin/usdview  # [unix]
+        - bin/testusdview  # [unix]
+        - Library/bin/usdview  # [win]
+        - Library/bin/usdview.cmd  # [win]
+        - Library/bin/testusdview  # [win]
+        - Library/bin/testusdview.cmd  # [win]
     requirements:
       # Anaconda: python is a build input and a run dependency so that this
       # output gets a python specific build string (conda-build only adds the
