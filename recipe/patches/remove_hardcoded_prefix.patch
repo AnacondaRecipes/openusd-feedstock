@@ -1,8 +1,6 @@
-diff --git a/pxr/pxrConfig.cmake.in b/pxr/pxrConfig.cmake.in
-index ae8d02c5c..693c24395 100644
 --- a/pxr/pxrConfig.cmake.in
 +++ b/pxr/pxrConfig.cmake.in
-@@ -24,23 +24,23 @@ include(CMakeFindDependencyMacro)
+@@ -24,24 +24,24 @@
  # were set. This can be overridden by specifying different values when
  # running cmake.
  if(@PXR_ENABLE_PYTHON_SUPPORT@)
@@ -23,25 +21,26 @@ index ae8d02c5c..693c24395 100644
 -            set(Python3_INCLUDE_DIR [[@Python3_INCLUDE_DIR@]])
 -        endif()
 -    endif()
-+
-+
-+
-+
-+
-+
-+
-+
-+
-+
-+
-+
-+
-+
-+
  
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
      if (NOT DEFINED Python3_VERSION)
-         find_dependency(Python3 "@Python3_VERSION@" EXACT COMPONENTS Development)
-@@ -63,7 +63,7 @@ else()
+         find_dependency(Python3 "@Python3_VERSION_MAJOR@.@Python3_VERSION_MINOR@" EXACT COMPONENTS Development)
+     else()
+@@ -63,7 +63,7 @@
          endif()
      endmacro()
  
