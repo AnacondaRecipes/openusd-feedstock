@@ -29,13 +29,11 @@ if [[ "${target_platform}" == osx-* ]]; then
     export OPENUSD_ADDITIONAL_CTEST_TO_SKIP="$OPENUSD_ADDITIONAL_CTEST_TO_SKIP|testWorkThreadLimitsTBBDefault|testWorkThreadLimitsTBB1|testWorkThreadLimitsTBB3|testVtArrayEditCpp|testSdfIntegerCoding|testSdfTextFile|testSdfTextFile_1.1|testSdfZipFile_CPP|testVdfDefaultInitAllocator|testVdfMask|testVdfDynamicTopologicalSorter|testEfTime|testEsfFixedSizePolymorphicHolder|testEsfEditReason|testVdfConnectorMap"
 fi
 
-# Anaconda: cross-compile only, and Anaconda builds every subdir natively.
-# Kept for reference in case this recipe is ever built with
-# build_platform != target_platform.
-# if [[ "${build_platform}" != "${target_platform}" ]]; then
-#     # Workaround for pyside6-uic not actually redirecting to the correct qt6-main uic
-#     CMAKE_ARGS="${CMAKE_ARGS} -DPYSIDEUICBINARY=$BUILD_PREFIX/lib/qt6/uic"
-# fi
+# Anaconda: upstream looks for the Qt Designer uic executable using
+# PYSIDEUICBINARY. On main, PySide's wrapper invokes $PREFIX/lib/qt6/uic, but
+# qt-main no longer ships that executable. Point it at the PySide6 wrapper
+# installed with the host dependency.
+CMAKE_ARGS="${CMAKE_ARGS} -DPYSIDEUICBINARY=${PREFIX}/bin/pyside6-uic"
 
 # PXR_PYTHON_INSTALL_DIR pins the Python bindings to lib/python (the hard-coded
 # location used before OpenUSD 26.08). As of 26.08 it defaults to a

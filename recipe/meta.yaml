@@ -48,10 +48,10 @@ requirements:
     - libgl-devel  # [linux]
     - libglx-devel  # [linux]
     - libopensubdiv {{ libopensubdiv }}  # analint: host_section_needs_exact_pinnings
+    # CMake configure requires PyOpenGL to enable the usdview build and tests.
+    - pyopengl  # [not (win and arm64)]
     # Anaconda: PySide6 is a build input (pyside6-uic generates the usdview UI
-    # modules, and the usdviewq tests import pxr.Usdviewq). PyOpenGL is not: it
-    # is only imported when usdview actually renders, so it is a run dependency
-    # of openusd-usdview instead of a host dependency here.
+    # modules, and the usdviewq tests import pxr.Usdviewq).
     - pyside6
     - python
     - tbb-devel
@@ -68,12 +68,13 @@ outputs:
         # libusd_* has to be rebuilt for a new 26.xx and must not use a newer one.
         - {{ pin_subpackage("openusd-libs", max_pin="x.x") }}
       ignore_run_exports_from:
-        # Anaconda: PySide6 is only a build input of the compile (pyside6-uic)
-        # and the Qt UI belongs to openusd-usdview, which asks for
-        # PySide6/PyOpenGL in its own run requirements. Anaconda main's pyside6
-        # exports nothing today, but conda-forge's does, so this keeps Qt out of
-        # the C++ libraries should that ever change here.
+        # Anaconda: PySide6 and PyOpenGL are build inputs of the compile, but the
+        # Qt UI belongs to openusd-usdview, which asks for them in its own run
+        # requirements. Anaconda main's pyside6 exports nothing today, but
+        # conda-forge's does, so this keeps Qt out of the C++ libraries should
+        # that ever change here.
         - pyside6
+        - pyopengl
     files:
       include:
         - "**"
@@ -123,9 +124,10 @@ outputs:
         - libgl-devel  # [linux]
         - libglx-devel  # [linux]
         - libopensubdiv {{ libopensubdiv }}  # analint: host_section_needs_exact_pinnings
-        # Anaconda: PySide6 is required at build time because __init__.py imports
-        # .qt, which usdviewq-generated modules come from. PyOpenGL is not
-        # needed to generate the .py files, only to render usdview at runtime.
+        # CMake configure requires PyOpenGL to enable the usdview build and tests.
+        - pyopengl  # [not (win and arm64)]
+        # Anaconda: PySide6 is also required by configure (pyside6-uic creates
+        # generated sources).
         - pyside6
         - python
         - tbb-devel

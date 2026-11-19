@@ -16,6 +16,11 @@ set "PXR_BUILD_EXAMPLES=ON"
 if "%target_platform%"=="win-arm64" set "PXR_BUILD_USDVIEW=OFF"
 if "%target_platform%"=="win-arm64" set "PXR_BUILD_EXAMPLES=OFF"
 
+:: Anaconda: PySide6's uic wrapper normally invokes
+:: %LIBRARY_PREFIX%\lib\qt6\uic. main does not install that executable; route it
+:: through the installed PySide6 wrapper on both Windows x86_64 and ARM64.
+if "%PXR_BUILD_USDVIEW%"=="ON" set CMAKE_ARGS=%CMAKE_ARGS% -DPYSIDEUICBINARY=%PREFIX%\Scripts\pyside6-uic.exe
+
 cmake %CMAKE_ARGS% ^
     -G "Ninja" ^
     -DCMAKE_INSTALL_PREFIX=%LIBRARY_PREFIX% ^
