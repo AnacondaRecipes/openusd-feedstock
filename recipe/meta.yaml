@@ -56,9 +56,9 @@ source:
   url: https://github.com/PixarAnimationStudios/OpenUSD/archive/refs/tags/v{{ version }}.tar.gz
   sha256: 4bccbb95cddda1dbeef2f74a08b9456352f2aa91bfd4578c0c613009c7950149
   patches:
-    - link_python_to_executables.patch
-    - add_pxr_install_dll_in_bin.patch
-    - remove_hardcoded_prefix.patch
+    - patches/link_python_to_executables.patch
+    - patches/add_pxr_install_dll_in_bin.patch
+    - patches/remove_hardcoded_prefix.patch
 
 build:
   number: 0
