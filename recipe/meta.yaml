@@ -62,6 +62,9 @@ source:
 
 build:
   number: 0
+  # Upstream's PyPI packaging declares "Requires-Python: >=3.9, <3.15" and only
+  # publishes cp39-cp314 wheels, so python 3.15 is not supported yet.
+  skip: true  # [py>=315]
 
 requirements:
   # Anaconda: these are the inputs of the one and only OpenUSD compile, which
