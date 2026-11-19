@@ -1,9 +1,21 @@
+@echo on
+
 mkdir build
+if errorlevel 1 exit /b 1
 cd build
 
 :: PXR_PYTHON_INSTALL_DIR pins the Python bindings to lib/python (the location
 :: used before OpenUSD 26.08). As of 26.08 it defaults to a Lib\site-packages
 :: layout, which would break the "move lib\python\pxr" step below.
+:: Anaconda: PyOpenGL has no win-arm64 build on Anaconda main and usdview
+:: imports it at runtime, so usdview is not built there. The extras examples are
+:: disabled as well because irExampleUsdviewPlugin is a python plugin that
+:: imports pxr.Usdviewq.qt and would otherwise be installed without Qt.
+set "PXR_BUILD_USDVIEW=ON"
+set "PXR_BUILD_EXAMPLES=ON"
+if "%target_platform%"=="win-arm64" set "PXR_BUILD_USDVIEW=OFF"
+if "%target_platform%"=="win-arm64" set "PXR_BUILD_EXAMPLES=OFF"
+
 cmake %CMAKE_ARGS% ^
     -G "Ninja" ^
     -DCMAKE_INSTALL_PREFIX=%LIBRARY_PREFIX% ^
@@ -13,6 +25,8 @@ cmake %CMAKE_ARGS% ^
     -DPXR_HEADLESS_TEST_MODE:BOOL=ON ^
     -DPXR_BUILD_IMAGING:BOOL=ON ^
     -DPXR_BUILD_USD_IMAGING=ON ^
+    -DPXR_BUILD_USDVIEW:BOOL=%PXR_BUILD_USDVIEW% ^
+    -DPXR_BUILD_EXAMPLES:BOOL=%PXR_BUILD_EXAMPLES% ^
     -DPXR_ENABLE_PYTHON_SUPPORT=ON ^
     -DCMAKE_EXPORT_NO_PACKAGE_REGISTRY:BOOL=ON ^
     -DPXR_PYTHON_SHEBANG="/usr/bin/env python" ^
@@ -21,15 +35,15 @@ cmake %CMAKE_ARGS% ^
     -DPython_EXECUTABLE=%PYTHON% ^
     -DPXR_INSTALL_DLL_IN_BIN:BOOL=ON ^
     %SRC_DIR%
-if errorlevel 1 exit 1
+if errorlevel 1 exit /b 1
 
 :: Build.
 cmake --build . --config Release
-if errorlevel 1 exit 1
+if errorlevel 1 exit /b 1
 
 :: Install.
 cmake --build . --config Release --target install
-if errorlevel 1 exit 1
+if errorlevel 1 exit /b 1
 
 :: Test.
 :: testWorkThreadLimits is disabled as it can fail on machines with few cores
@@ -43,25 +57,25 @@ if errorlevel 1 exit 1
 :: --no-tests=ignore keeps ctest from erroring when no tests are registered
 :: (recent ctest defaults that action to "error").
 ctest --output-on-failure --no-tests=ignore -C Release -E "testWorkThreadLimits|testUsdResolverExample|TfPathUtils|testWorkDispatcher|testUsdUtilsFlattenLayerStack|testExecGeomXformable_Perf_Large"
-if errorlevel 1 exit 1
+if errorlevel 1 exit /b 1
 
 :: The CMake install logic of openusd is not flexible, so let's fix the files
 :: that should not be installed or should be installed in a different location
 
 :: Python files should be moved from $CMAKE_INSTALL_PREFIX/lib/python/pxr to $SP_DIR/pxr
 move "%LIBRARY_PREFIX%\lib\python\pxr" "%SP_DIR%\pxr"
-if errorlevel 1 exit 1
+if errorlevel 1 exit /b 1
 
 
 :: All files installed in $CMAKE_INSTALL_PREFIX/tests, $CMAKE_INSTALL_PREFIX/share/usd/examples and $CMAKE_INSTALL_PREFIX/share/usd/tutorials can be removed
-rd /s /q "%LIBRARY_PREFIX%\tests"
-if errorlevel 1 exit 1
+if exist "%LIBRARY_PREFIX%\tests" rd /s /q "%LIBRARY_PREFIX%\tests"
+if errorlevel 1 exit /b 1
 
-rd /s /q "%LIBRARY_PREFIX%\share\usd\examples"
-if errorlevel 1 exit 1
+if exist "%LIBRARY_PREFIX%\share\usd\examples" rd /s /q "%LIBRARY_PREFIX%\share\usd\examples"
+if errorlevel 1 exit /b 1
 
-rd /s /q "%LIBRARY_PREFIX%\share\usd\tutorials"
-if errorlevel 1 exit 1
+if exist "%LIBRARY_PREFIX%\share\usd\tutorials" rd /s /q "%LIBRARY_PREFIX%\share\usd\tutorials"
+if errorlevel 1 exit /b 1
 
 REM This logic is to ensure that pip list lists usd-core (https://pypi.org/project/usd-core/) as installed package
 REM The version style is a bit different: openusd version are something like 22.01, 23.05.01, 24.11 while usd-core are 22.1, 23.5.1, 24.11
@@ -73,7 +87,8 @@ REM The INSTALLER file is necessary to ensure that pip list shows that the packa
 REM See https://packaging.python.org/specifications/recording-installed-packages/
 REM and https://packaging.python.org/en/latest/specifications/core-metadata/#core-metadata
 
-mkdir "%SP_DIR%/usd_core-%PIP_USD_CORE_VERSION%.dist-info"
+mkdir "%SP_DIR%\usd_core-%PIP_USD_CORE_VERSION%.dist-info"
+if errorlevel 1 exit /b 1
 
 set metadata_file=%SP_DIR%\usd_core-%PIP_USD_CORE_VERSION%.dist-info\METADATA
 echo>%metadata_file% Metadata-Version: 2.1

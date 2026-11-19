@@ -1,4 +1,6 @@
-#!/bin/sh
+#!/bin/bash
+
+set -exo pipefail
 
 mkdir build
 cd build
@@ -27,10 +29,13 @@ if [[ "${target_platform}" == osx-* ]]; then
     export OPENUSD_ADDITIONAL_CTEST_TO_SKIP="$OPENUSD_ADDITIONAL_CTEST_TO_SKIP|testWorkThreadLimitsTBBDefault|testWorkThreadLimitsTBB1|testWorkThreadLimitsTBB3|testVtArrayEditCpp|testSdfIntegerCoding|testSdfTextFile|testSdfTextFile_1.1|testSdfZipFile_CPP|testVdfDefaultInitAllocator|testVdfMask|testVdfDynamicTopologicalSorter|testEfTime|testEsfFixedSizePolymorphicHolder|testEsfEditReason|testVdfConnectorMap"
 fi
 
-if [[ "${build_platform}" != "${target_platform}" ]]; then
-    # Workaround for pyside6-uic not actually redirecting to the correct qt6-main uic
-    CMAKE_ARGS="${CMAKE_ARGS} -DPYSIDEUICBINARY=$BUILD_PREFIX/lib/qt6/uic"
-fi
+# Anaconda: cross-compile only, and Anaconda builds every subdir natively.
+# Kept for reference in case this recipe is ever built with
+# build_platform != target_platform.
+# if [[ "${build_platform}" != "${target_platform}" ]]; then
+#     # Workaround for pyside6-uic not actually redirecting to the correct qt6-main uic
+#     CMAKE_ARGS="${CMAKE_ARGS} -DPYSIDEUICBINARY=$BUILD_PREFIX/lib/qt6/uic"
+# fi
 
 # PXR_PYTHON_INSTALL_DIR pins the Python bindings to lib/python (the hard-coded
 # location used before OpenUSD 26.08). As of 26.08 it defaults to a
@@ -62,7 +67,10 @@ if [[ "${CONDA_BUILD_CROSS_COMPILATION:-}" != "1" || "${CROSSCOMPILING_EMULATOR}
     ctest --output-on-failure --no-tests=ignore -C Release -E "testWorkThreadLimits3|testJsIO|testExecGeomXformable_Perf_Large|${OPENUSD_ADDITIONAL_CTEST_TO_SKIP}"
 fi
 
-# Workaround for https://github.com/prefix-dev/rattler-build/issues/1955
+# Anaconda: ported from the rattler-build recipe, where this worked around
+# https://github.com/prefix-dev/rattler-build/issues/1955. conda-build already
+# relinks dylibs onto $PREFIX/lib, but running it keeps the exact rpath layout
+# the previous builds shipped; drop it only after verifying an osx build.
 if [[ "${target_platform}" == osx-* ]]; then
     sh "${RECIPE_DIR}/fix_rpaths_macos.sh"
 fi
