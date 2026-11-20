@@ -31,6 +31,13 @@ build:
   ignore_run_exports_from:
     # qtbase-devel provides 'uic' binary for the build; don't propagate its qtbase run export.
     - qtbase-devel
+  # openusd-python/openusd-tools/openusd-usdview have no compiler in their own
+  # requirements/build, so conda-build's overlinking check can't attribute
+  # libstdc++/libgcc_s to a package for them (openusd-libs is unaffected: it
+  # declares compiler('cxx')/compiler('c') and gets these via run_exports).
+  missing_dso_allowlist:  # [linux]
+    - "*/libstdc++.so*"  # [linux]
+    - "*/libgcc_s.so*"  # [linux]
 
 requirements:
   # These are the inputs of the build: build.sh/bld.bat run in this environment.
@@ -55,6 +62,7 @@ requirements:
     - python
     - qtbase-devel
     - tbb-devel {{ tbb }}  # analint: host_section_needs_exact_pinnings
+    - xorg-libx11 {{ xorg_libx11 }}  # [linux]
     - xorg-libxrandr {{ xorg_libxrandr }}  # [linux]
 
 outputs:
@@ -120,19 +128,22 @@ outputs:
         - python
         - qtbase-devel
         - tbb-devel {{ tbb }}  # analint: host_section_needs_exact_pinnings
+        - xorg-libx11 {{ xorg_libx11 }}  # [linux]
         - xorg-libxrandr {{ xorg_libxrandr }}  # [linux]
       run:
         # the pxr CMake config shipped here does
         # find_dependency(Python3 COMPONENTS Development), so python is a run
         # dependency of the C++ libraries and not only of openusd-python.
         - python
-        # Without tbb-devel, CMake's find_package(pxr REQUIRED) fails
-        # Furthermore, openusd exposes internal header-only symbols of tbb in its public headers/public symbols,
-        # so even if the tbb itself is ABI stable, we need to pin the major minor version of tbb-devel to ensure that
-        # the symbols contained in the library match the one that the downstream consumers expect to use, see
-        # https://github.com/conda-forge/openusd-feedstock/issues/9 for more details
-        # max_pin="x.x" is the conda-build spelling of the V1 recipe's
-        # upper_bound="x.x": only 2023.0.x may satisfy the pin.
+        # libusd_glf.so/libusd_garch.so link libX11 directly (GLX); without
+        # this, overlinking fails since it's otherwise only a transitive
+        # build-time dep via libgl-devel/libglx-devel.
+        - xorg-libx11 {{ xorg_libx11 }}  # [linux]
+        # tbb-devel is needed at runtime too: find_package(pxr REQUIRED)
+        # needs it, and openusd exposes tbb's header-only symbols publicly,
+        # so consumers need a matching tbb-devel (max_pin="x.x" == V1's
+        # upper_bound="x.x"). See
+        # https://github.com/conda-forge/openusd-feedstock/issues/9
         - {{ pin_compatible("tbb-devel", max_pin="x.x") }}
     test:
       # The consumer project is copied into info/recipe by conda-build.
@@ -197,16 +208,18 @@ outputs:
         - Lib/site-packages/pxr/Usdviewq/*  # [win]
         - Lib/site-packages/pxr/Usdviewq/**/*  # [win]
     requirements:
+      build:
+        - {{ stdlib("c") }}
       host:
         - python
         # libusd_* live in openusd-libs; the pxr extensions link to them.
         - {{ pin_subpackage("openusd-libs", exact=True) }}
-        - tbb {{ tbb }}
+        - tbb-devel {{ tbb }}  # analint: host_section_needs_exact_pinnings
       run:
         - python
         - {{ pin_subpackage("openusd-libs", exact=True) }}
         # pxr extensions link to tbb and need it at runtime.
-        - {{ pin_compatible("tbb", max_pin="x.x") }}
+        - tbb {{ tbb }}
     test:
       imports:
         - pxr
@@ -264,15 +277,20 @@ outputs:
         - Library/bin/testusdview  # [win]
         - Library/bin/testusdview.cmd  # [win]
     requirements:
+      build:
+        - {{ stdlib("c") }}
       host:
         - python
         # The tools link to libusd_* from openusd-libs.
         - {{ pin_subpackage("openusd-libs", exact=True) }}
+        - tbb-devel {{ tbb }}  # analint: host_section_needs_exact_pinnings
       run:
         - python
         - {{ pin_subpackage("openusd-libs", exact=True) }}
         - {{ pin_subpackage("openusd-python", exact=True) }}
         - jinja2
+        # the tools (e.g. usdtree) link to tbb and need it at runtime.
+        - tbb {{ tbb }}
     test:
       files:
         - openusd_make_stage.py
@@ -317,17 +335,21 @@ outputs:
         - Library/bin/testusdview  # [win]
         - Library/bin/testusdview.cmd  # [win]
     requirements:
+      build:
+        - {{ stdlib("c") }}
       host:
         - python
         # usdview links to libusd_* and tbb.
         - {{ pin_subpackage("openusd-libs", exact=True) }}
-        - tbb {{ tbb }}
+        - tbb-devel {{ tbb }}  # analint: host_section_needs_exact_pinnings
       run:
         - python
         - {{ pin_subpackage("openusd-libs", exact=True) }}
         - {{ pin_subpackage("openusd-python", exact=True) }}
         - pyside6
         - pyopengl
+        # usdview (bin/usdview) links to tbb and needs it at runtime.
+        - tbb {{ tbb }}
     test:
       commands:
         - usdview --help
