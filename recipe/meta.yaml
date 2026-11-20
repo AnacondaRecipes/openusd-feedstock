@@ -14,6 +14,8 @@ source:
   patches:
     # Link executables against Python3::Python even with undefined dynamic lookup.
     - patches/link_python_to_executables.patch
+    # Same as link_python_to_executables.patch above, but for Linux's -Wl,--as-needed.
+    - patches/link_python_to_executables_elf_as_needed.patch
     # Add PXR_INSTALL_DLL_IN_BIN to install DLLs next to the executables on Windows.
     - patches/add_pxr_install_dll_in_bin.patch
     # Drop the hard-coded Python paths from pxrConfig.cmake.

@@ -59,8 +59,11 @@ cmake --build . --config Release --parallel ${CPU_COUNT:-2}
 cmake --build . --config Release --parallel ${CPU_COUNT:-2} --target install
 
 # testWorkThreadLimits3 is disabled as it can fail on machines with few cores
-# testJsIO is disabled as it now actually links usd_tf, and so the linker remove the link to Python
-# testExecGeomXformable_Perf_Large is disabled as it is disabled upstream, see 
+# testJsIO is excluded from this ctest *run* only; that alone never stopped
+# it from being built. The build-time problem this historically referred to,
+# and its fix, are documented in patches/link_python_to_executables_elf_as_needed.patch.
+# Left the test excluded here since actually running it has never been verified.
+# testExecGeomXformable_Perf_Large is disabled as it is disabled upstream, see
 # https://github.com/PixarAnimationStudios/OpenUSD/blob/v25.11/.github/workflows/buildusd.yml#L83
 # --no-tests=ignore keeps ctest from erroring when it registers no tests (the
 # default action became "error" in recent ctest). On some configurations (e.g.

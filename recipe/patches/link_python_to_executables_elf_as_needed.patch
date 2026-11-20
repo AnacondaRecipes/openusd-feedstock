@@ -1,0 +1,29 @@
+diff --git a/pxr/external/boost/python/CMakeLists.txt b/pxr/external/boost/python/CMakeLists.txt
+index 8f2466b..3333333 100644
+--- a/pxr/external/boost/python/CMakeLists.txt
++++ b/pxr/external/boost/python/CMakeLists.txt
+@@ -364,6 +364,24 @@ if (PXR_PY_UNDEFINED_DYNAMIC_LOOKUP)
+     if(APPLE)
+         set_property(TARGET python APPEND PROPERTY INTERFACE_LINK_OPTIONS
+             "$<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>:LINKER:-needed_library,$<TARGET_FILE:Python3::Python>>"
++        )
++    endif()
++    # Anaconda: conda-forge's Linux LDFLAGS include -Wl,--as-needed, which is
++    # the ELF analogue of the macOS -dead_strip_dylibs problem handled above:
++    # an executable that doesn't reference a Python symbol directly has no
++    # "need" of its own for libpython, so --as-needed drops its DT_NEEDED
++    # entry. Unlike on macOS, where symbol resolution for an already-built
++    # .dylib always succeeds lazily at load time regardless of --as-needed,
++    # GNU ld additionally requires -- when creating an EXECUTABLE -- that
++    # every undefined symbol carried by usd_tf.so/usd_python.so (left
++    # unresolved there on purpose by PXR_PY_UNDEFINED_DYNAMIC_LOOKUP) be
++    # resolved from something explicitly on the link line, and silently
++    # dropping libpython defeats that, producing "undefined reference" to
++    # CPython C API symbols at static link time instead of a runtime crash.
++    # --no-as-needed disables that pruning so libpython is always kept.
++    if(UNIX AND NOT APPLE)
++        set_property(TARGET python APPEND PROPERTY INTERFACE_LINK_OPTIONS
++            "$<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>:LINKER:--no-as-needed>"
+         )
+     endif()
+ endif()
