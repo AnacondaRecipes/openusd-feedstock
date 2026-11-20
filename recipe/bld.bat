@@ -11,8 +11,7 @@ cd build
 :: irExampleUsdviewPlugin is a python plugin that imports pxr.Usdviewq.qt and
 :: would otherwise be installed without Qt.
 set "PXR_BUILD_USDVIEW=ON"
-set "PXR_BUILD_EXAMPLES=ON"
-if "%target_platform%"=="win-arm64" set "PXR_BUILD_EXAMPLES=OFF"
+set "PXR_BUILD_EXAMPLES=OFF"
 
 :: Anaconda: upstream looks for the Qt Designer uic executable using
 :: PYSIDEUICBINARY. On Anaconda main, PySide6's wrapper is patched to call

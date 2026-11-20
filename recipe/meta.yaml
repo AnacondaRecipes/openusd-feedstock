@@ -1,26 +1,22 @@
 {% set version = "26.08" %}
+{% set sha256 = "4bccbb95cddda1dbeef2f74a08b9456352f2aa91bfd4578c0c613009c7950149" %}
 
-# The python bindings are published on PyPI as `usd-core`, which drops the
-# trailing zero of the OpenUSD version (26.08 -> 26.8). build.sh/bld.bat write a
-# matching dist-info directory so that pip and other python tooling see the
-# module under that name, and the `usd-core` metapackage gives it a conda
-# counterpart. The value is a literal rather than version.replace(...) because the
-# recipe parser used for PBP graph generation does not evaluate Jinja expressions.
+# PyPI's usd-core drops the trailing zero. Keep in sync with version.
 {% set usd_core_version = "26.8" %}
 
 package:
-  # Anaconda: split-recipe convention. The top-level package only hosts the
-  # single OpenUSD build; the outputs below partition its files, so this name
-  # must not collide with any output name and is not meant to be installed.
   name: openusd-split
   version: {{ version }}
 
 source:
   url: https://github.com/PixarAnimationStudios/OpenUSD/archive/refs/tags/v{{ version }}.tar.gz
-  sha256: 4bccbb95cddda1dbeef2f74a08b9456352f2aa91bfd4578c0c613009c7950149
+  sha256: {{ sha256 }}
   patches:
+    # Link executables against Python3::Python even with undefined dynamic lookup.
     - patches/link_python_to_executables.patch
+    # Add PXR_INSTALL_DLL_IN_BIN to install DLLs next to the executables on Windows.
     - patches/add_pxr_install_dll_in_bin.patch
+    # Drop the hard-coded Python paths from pxrConfig.cmake.
     - patches/remove_hardcoded_prefix.patch
 
 build:
@@ -28,11 +24,14 @@ build:
   # Upstream's PyPI packaging declares "Requires-Python: >=3.9, <3.15" and only
   # publishes cp39-cp314 wheels, so python 3.15 is not supported yet.
   skip: true  # [py>=315]
+  # Keep top-level: an output-level build section overrides inherited build
+  # metadata and would discard a sibling output-level run_exports.
+  ignore_run_exports_from:
+    # qtbase-devel provides 'uic' binary for the build; don't propagate its qtbase run export.
+    - qtbase-devel
 
 requirements:
-  # Anaconda: these are the inputs of the one and only OpenUSD compile, which
-  # runs build.sh/bld.bat for this top-level package. There is deliberately no
-  # run section: every output below declares its own requirements.
+  # These are the inputs of the build: build.sh/bld.bat run in this environment.
   build:
     - {{ stdlib("c") }}
     - {{ compiler("c") }}
@@ -42,39 +41,27 @@ requirements:
   host:
     - glfw {{ glfw }}
     - jinja2
-    - libgl-devel  # [linux]
-    - libglx-devel  # [linux]
-    - libopensubdiv {{ libopensubdiv }}
+    - libgl-devel {{ libgl }}  # [linux]
+    - libglx-devel {{ libglx }}  # [linux]
+    - libopensubdiv {{ libopensubdiv }}  # analint: host_section_needs_exact_pinnings
     # CMake configure requires PyOpenGL to enable the usdview build and tests.
     - pyopengl
-    # Anaconda: PySide6 is a build input (pyside6-uic generates the usdview UI
+    # PySide6 is a build input (pyside6-uic generates the usdview UI
     # modules, and the usdviewq tests import pxr.Usdviewq). pyside6-uic uses
     # the uic binary from qtbase-devel.
     - pyside6
     - python
     - qtbase-devel
-    - tbb-devel
-    - xorg-libxrandr  # [linux]
+    - tbb-devel {{ tbb }}  # analint: host_section_needs_exact_pinnings
+    - xorg-libxrandr {{ xorg_libxrandr }}  # [linux]
 
 outputs:
+  # C++ libraries, headers, configs and plugin resources.
   - name: openusd-libs
-    # Anaconda: headers, C++ libraries, cmake configs, plugin resources and the
-    # C++ command line tools. Everything below is declared here rather than
-    # inherited, see the comment on the top-level requirements.
-    build:
-      run_exports:
-        # The pxr C++ ABI changes across minor releases: everything that links
-        # libusd_* has to be rebuilt for a new 26.xx and must not use a newer one.
-        - {{ pin_subpackage("openusd-libs", max_pin="x.x") }}
-      ignore_run_exports_from:
-        # Anaconda: PySide6 and PyOpenGL are build inputs of the compile, but the
-        # Qt UI belongs to openusd-usdview, which asks for them in its own run
-        # requirements. Anaconda main's pyside6 exports nothing today, but
-        # conda-forge's does, so this keeps Qt out of the C++ libraries should
-        # that ever change here.
-        - pyside6
-        - qtbase-devel
-        - pyopengl
+    run_exports:
+      # The pxr C++ ABI changes across minor releases: everything that links
+      # libusd_* has to be rebuilt for a new 26.xx and must not use a newer one.
+      - {{ pin_subpackage("openusd-libs", max_pin="x.x") }}
     files:
       include:
         - "**"
@@ -94,9 +81,9 @@ outputs:
         - bin/*  # [unix]
         - Library/bin/*.cmd  # [win]
         - Library/bin/*.exe  # [win]
+        # Extensionless Windows tool launchers are scripts; keep them with openusd-tools/usdview.
         - Library/bin/hdGenSchema  # [win]
         - Library/bin/testusdview  # [win]
-        - Library/bin/usd  # [win]
         - Library/bin/usddiff  # [win]
         - Library/bin/usddumpcrate  # [win]
         - Library/bin/usdedit  # [win]
@@ -120,21 +107,20 @@ outputs:
         - ninja-base
       host:
         - glfw {{ glfw }}
-        - jinja2
-        - libgl-devel  # [linux]
-        - libglx-devel  # [linux]
-        - libopensubdiv {{ libopensubdiv }}
+        - libgl-devel {{ libgl }}  # [linux]
+        - libglx-devel {{ libglx }}  # [linux]
+        - libopensubdiv {{ libopensubdiv }}  # analint: host_section_needs_exact_pinnings
         # CMake configure requires PyOpenGL to enable the usdview build and tests.
         - pyopengl
-        # Anaconda: PySide6 is also required by configure (pyside6-uic creates
+        # PySide6 is also required by configure (pyside6-uic creates
         # generated sources). pyside6-uic uses the uic binary from qtbase-devel.
         - pyside6
         - python
         - qtbase-devel
-        - tbb-devel
-        - xorg-libxrandr  # [linux]
+        - tbb-devel {{ tbb }}  # analint: host_section_needs_exact_pinnings
+        - xorg-libxrandr {{ xorg_libxrandr }}  # [linux]
       run:
-        # Anaconda: the pxr CMake config shipped here does
+        # the pxr CMake config shipped here does
         # find_dependency(Python3 COMPONENTS Development), so python is a run
         # dependency of the C++ libraries and not only of openusd-python.
         - python
@@ -147,6 +133,9 @@ outputs:
         # upper_bound="x.x": only 2023.0.x may satisfy the pin.
         - {{ pin_compatible("tbb-devel", max_pin="x.x") }}
     test:
+      # The consumer project is copied into info/recipe by conda-build.
+      files:
+        - cmake_consumer
       requires:
         - {{ compiler("c") }}
         - {{ compiler("cxx") }}
@@ -168,15 +157,27 @@ outputs:
         - if not exist %LIBRARY_BIN%\usd_usd.dll exit 1  # [win]
         - if exist %LIBRARY_BIN%\usdcat.exe exit 1  # [win]
         - if exist %LIBRARY_BIN%\usdview exit 1  # [win]
-        # Anaconda: cmake-package-check is a conda-forge-only package, so the
+        # cmake-package-check is a conda-forge-only package, so the
         # find_package(pxr) check is done with a small consumer project instead.
-        - cmake -S $RECIPE_DIR/cmake_consumer -B cmake_consumer_build -G Ninja  # [unix]
-        - cmake -S %RECIPE_DIR%\cmake_consumer -B cmake_consumer_build -G Ninja  # [win]
-        - cmake --build cmake_consumer_build
-        - cmake_consumer_build/pxr_consumer  # [unix]
-        - cmake_consumer_build\pxr_consumer.exe  # [win]
+        - cmake -S cmake_consumer -B build -G Ninja
+        - cmake --build build --config Release
+        - build/pxr_consumer  # [unix]
+        - build\pxr_consumer.exe  # [win]
+    about:
+      license: LicenseRef-Tomorrow-Open-Source-Technology-License-1.0 AND Apache-2.0 AND MIT AND BSD-2-Clause AND BSD-3-Clause AND JSON AND BSL-1.0
+      license_family: Other
+      license_file: LICENSE.txt
+      summary: Library to read and write Universal Scene Description (USD) files.
+      description: |
+        The OpenUSD C++ libraries, headers, cmake configs and plugin resources.
+      home: https://github.com/PixarAnimationStudios/OpenUSD
+      dev_url: https://github.com/PixarAnimationStudios/OpenUSD
+      doc_url: https://openusd.org/release/index.html
 
+  # Python bindings (pxr package, without Usdviewq).
   - name: openusd-python
+    run_exports:
+      - {{ pin_subpackage("openusd-libs", max_pin="x.x") }}
     files:
       include:
         - lib/python*/site-packages/pxr/*
@@ -196,16 +197,21 @@ outputs:
     requirements:
       host:
         - python
+        # libusd_* live in openusd-libs; the pxr extensions link to them.
+        - {{ pin_subpackage("openusd-libs", exact=True) }}
+        - tbb {{ tbb }}
       run:
         - python
         - {{ pin_subpackage("openusd-libs", exact=True) }}
+        # pxr extensions link to tbb and need it at runtime.
+        - {{ pin_compatible("tbb", max_pin="x.x") }}
     test:
       imports:
         - pxr
         - pxr.Usd
         - pxr.UsdGeom
       commands:
-        # Anaconda: round trip through both the ascii (usda) and the binary
+        # round trip through both the ascii (usda) and the binary
         # (usdc, i.e. the crate plugin) file formats, which is what the upstream
         # test suite exercises for Sdf/Usd/Pcp.
         - python -c "from pxr import Sdf, Usd, UsdGeom; s = Usd.Stage.CreateNew('roundtrip.usda'); p = UsdGeom.Xform.Define(s, '/World'); s.SetDefaultPrim(p.GetPrim()); s.GetRootLayer().Save(); t = Usd.Stage.Open('roundtrip.usda'); assert t.GetPrimAtPath('/World').IsValid(); assert str(t.GetDefaultPrim().GetPath()) == '/World'; assert isinstance(t.GetRootLayer(), Sdf.Layer)"
@@ -213,19 +219,27 @@ outputs:
         # The dist-info shim written by build.sh/bld.bat is what makes the
         # pip package name visible to pip and to python tooling.
         - python -c "import importlib.metadata as m; assert m.version('usd-core') == '{{ usd_core_version }}'"
+    about:
+      license: LicenseRef-Tomorrow-Open-Source-Technology-License-1.0 AND Apache-2.0 AND MIT AND BSD-2-Clause AND BSD-3-Clause AND JSON AND BSL-1.0
+      license_family: Other
+      license_file: LICENSE.txt
+      summary: Library to read and write Universal Scene Description (USD) files.
+      description: |
+        The OpenUSD Python bindings. Import with 'from pxr import Usd'.
+      home: https://github.com/PixarAnimationStudios/OpenUSD
+      dev_url: https://github.com/PixarAnimationStudios/OpenUSD
+      doc_url: https://openusd.org/release/index.html
 
+  # Command-line tools (some tools are C++ and some of them are Python).
   - name: openusd-tools
-    # Anaconda: the command line tools. The C++ ones (usdcat, usdchecker,
-    # usdtree, usdzip, sdfdump, sdffilter) only need openusd-libs, the python
-    # ones (usddiff, usdrecord, usdGenSchema, usdresolve, ...) need the pxr
-    # bindings, so the package depends on openusd-python.
+    run_exports:
+      - {{ pin_subpackage("openusd-libs", max_pin="x.x") }}
     files:
       include:
         - bin/*  # [unix]
         - Library/bin/*.cmd  # [win]
         - Library/bin/*.exe  # [win]
         - Library/bin/hdGenSchema  # [win]
-        - Library/bin/usd  # [win]
         - Library/bin/usddiff  # [win]
         - Library/bin/usddumpcrate  # [win]
         - Library/bin/usdedit  # [win]
@@ -248,31 +262,46 @@ outputs:
         - Library/bin/testusdview  # [win]
         - Library/bin/testusdview.cmd  # [win]
     requirements:
-      # Anaconda: python is a build input and a run dependency so that this
-      # output gets a python specific build string, like openusd-python.
       host:
         - python
+        # The tools link to libusd_* from openusd-libs.
+        - {{ pin_subpackage("openusd-libs", exact=True) }}
       run:
         - python
+        - {{ pin_subpackage("openusd-libs", exact=True) }}
         - {{ pin_subpackage("openusd-python", exact=True) }}
+        - jinja2
     test:
+      files:
+        - openusd_make_stage.py
       commands:
         - usdcat --help
         - usddiff --help
         - usdrecord --help
         - usdGenSchema --help
         - usdresolve --help
-        # Anaconda: the tools have to work against the installed layout, so
+        # the tools have to work against the installed layout, so
         # author a layer with the bindings (openusd-python is a dependency) and
-        # convert/validate it with the C++ tools.
-        - python -c "from pxr import Usd, UsdGeom; s = Usd.Stage.CreateNew('tools.usda'); UsdGeom.Xform.Define(s, '/World'); s.GetRootLayer().Save()"
+        # convert/validate it with the command-line tools.
+        - python openusd_make_stage.py tools.usda
         - usdcat tools.usda
         - usdcat -o tools.usdc tools.usda
         - usdchecker tools.usdc
+    about:
+      license: LicenseRef-Tomorrow-Open-Source-Technology-License-1.0 AND Apache-2.0 AND MIT AND BSD-2-Clause AND BSD-3-Clause AND JSON AND BSL-1.0
+      license_family: Other
+      license_file: LICENSE.txt
+      summary: Library to read and write Universal Scene Description (USD) files.
+      description: |
+        The OpenUSD command-line tools.
+      home: https://github.com/PixarAnimationStudios/OpenUSD
+      dev_url: https://github.com/PixarAnimationStudios/OpenUSD
+      doc_url: https://openusd.org/release/index.html
 
+  # Qt-based usdview application (the only output that pulls PySide6/PyOpenGL).
   - name: openusd-usdview
-    # Anaconda: usdview is the only consumer of PySide6/PyOpenGL, so it is
-    # packaged separately and openusd/openusd-python no longer pull Qt.
+    run_exports:
+      - {{ pin_subpackage("openusd-libs", max_pin="x.x") }}
     files:
       include:
         - lib/python*/site-packages/pxr/Usdviewq/*
@@ -286,14 +315,14 @@ outputs:
         - Library/bin/testusdview  # [win]
         - Library/bin/testusdview.cmd  # [win]
     requirements:
-      # Anaconda: python is a build input and a run dependency so that this
-      # output gets a python specific build string (conda-build only adds the
-      # pyXY tag when python is in both host and run); the package installs
-      # version specific .pyc files and pins openusd-python exactly.
       host:
         - python
+        # usdview links to libusd_* and tbb.
+        - {{ pin_subpackage("openusd-libs", exact=True) }}
+        - tbb {{ tbb }}
       run:
         - python
+        - {{ pin_subpackage("openusd-libs", exact=True) }}
         - {{ pin_subpackage("openusd-python", exact=True) }}
         - pyside6
         - pyopengl
@@ -301,16 +330,44 @@ outputs:
       commands:
         - usdview --help
         - testusdview --help
+    about:
+      license: LicenseRef-Tomorrow-Open-Source-Technology-License-1.0 AND Apache-2.0 AND MIT AND BSD-2-Clause AND BSD-3-Clause AND JSON AND BSL-1.0
+      license_family: Other
+      license_file: LICENSE.txt
+      summary: Library to read and write Universal Scene Description (USD) files.
+      description: |
+        The Qt-based usdview application.
+      home: https://github.com/PixarAnimationStudios/OpenUSD
+      dev_url: https://github.com/PixarAnimationStudios/OpenUSD
+      doc_url: https://openusd.org/release/index.html
 
-  - name: openusd
-    # Anaconda: metapackage, keeps `conda install openusd` a drop-in replacement
-    # for the former single-output package (C++ libraries, python bindings, tools
-    # and usdview). Install openusd-python for a Qt-free environment, or
-    # openusd-python + openusd-tools without the GUI.
+  # PyPI-name metapackage for the Python bindings.
+  - name: usd-core
     requirements:
-      # Anaconda: python is a build input and a run dependency so that the
-      # metapackage is built once per python variant instead of all variants
-      # sharing one build string.
+      host:
+        - python
+      run:
+        - python
+        - {{ pin_subpackage("openusd-python", exact=True) }}
+    test:
+      imports:
+        - pxr
+        - pxr.Usd
+        - pxr.UsdGeom
+    about:
+      license: LicenseRef-Tomorrow-Open-Source-Technology-License-1.0 AND Apache-2.0 AND MIT AND BSD-2-Clause AND BSD-3-Clause AND JSON AND BSL-1.0
+      license_family: Other
+      license_file: LICENSE.txt
+      summary: Library to read and write Universal Scene Description (USD) files.
+      description: |
+        Metapackage for the OpenUSD Python bindings under their PyPI name.
+      home: https://github.com/PixarAnimationStudios/OpenUSD
+      dev_url: https://github.com/PixarAnimationStudios/OpenUSD
+      doc_url: https://openusd.org/release/index.html
+
+  # Full-install metapackage (libs, Python, tools and usdview).
+  - name: openusd
+    requirements:
       host:
         - python
       run:
@@ -322,38 +379,19 @@ outputs:
     test:
       files:
         - openusd_plugins_sanity_check.py
+        - openusd_make_stage.py
       commands:
         # Loading every registered plugin needs the full install (C++ libraries,
         # python bindings and their resources), which is what this metapackage is.
         - python openusd_plugins_sanity_check.py 40
-        # Anaconda: end to end check across the outputs: the ascii file is
-        # authored with the python bindings and validated by the C++ usdchecker
+        # end to end check across the outputs: the ascii file is
+        # authored with the python bindings and validated by usdchecker
         # that ships in openusd-libs.
-        - python -c "from pxr import Usd, UsdGeom; s = Usd.Stage.CreateNew('check.usda'); UsdGeom.Xform.Define(s, '/World'); s.GetRootLayer().Save()"
+        - python openusd_make_stage.py check.usda
         - usdchecker check.usda
 
-  - name: usd-core
-    # Anaconda: metapackage for the PyPI name of the python bindings, so that
-    # requirements written for pip (`usd-core`) have a conda counterpart.
-    requirements:
-      # Anaconda: python is a build input and a run dependency so that this
-      # metapackage is built once per python variant instead of all variants
-      # sharing one build string.
-      host:
-        - python
-      run:
-        - python
-        - {{ pin_subpackage("openusd-python", exact=True) }}
-    test:
-      imports:
-        - pxr
-        - pxr.Usd
-        - pxr.UsdGeom
-
 about:
-  # The main openusd license is the Tomorrow Open Source Technology License 1.0 (see https://forum.aousd.org/t/upcoming-openusd-license-update/1561)
-  # The license is not OSI-approved or have an official SPDX identified, so we use LicenseRef-Tomorrow-Open-Source-Technology-License-1.0
-  # openusd vendors several  other libraries, but all their licenses are listed in LICENSE.txt and listed in the following
+  # Tomorrow Open Source Technology License 1.0 has no official SPDX ID.
   license: LicenseRef-Tomorrow-Open-Source-Technology-License-1.0 AND Apache-2.0 AND MIT AND BSD-2-Clause AND BSD-3-Clause AND JSON AND BSL-1.0
   license_family: Other
   license_file: LICENSE.txt
@@ -361,23 +399,15 @@ about:
   description: |
     Universal Scene Description (OpenUSD) is a system for authoring, composing
     and reading hierarchically organized scene description.
-
-    This feedstock builds:
-
-    - openusd-libs: the pxr C++ libraries, headers, cmake configs and plugins.
-    - openusd-python: the pxr python bindings.
-    - openusd-tools: the command line tools (usdcat, usdchecker, usddiff, ...).
-    - openusd-usdview: the Qt based usdview application.
-    - openusd: metapackage for the complete install.
-    - usd-core: metapackage for the python bindings under their PyPI name.
-
-    The top-level openusd-split package only hosts the build and is not meant
-    to be installed.
   home: https://github.com/PixarAnimationStudios/OpenUSD
   dev_url: https://github.com/PixarAnimationStudios/OpenUSD
   doc_url: https://openusd.org/release/index.html
 
 extra:
+  skip-lints:
+    # Split native-library and Python/tool outputs are tested with package-specific commands.
+    - missing_imports_or_run_test_py
   recipe-maintainers:
     - oursland
     - traversaro
+    - onurbingol
