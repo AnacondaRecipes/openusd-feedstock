@@ -14,16 +14,20 @@ set "PXR_BUILD_USDVIEW=ON"
 set "PXR_BUILD_EXAMPLES=ON"
 if "%target_platform%"=="win-arm64" set "PXR_BUILD_EXAMPLES=OFF"
 
-:: Anaconda: PySide6's uic wrapper normally invokes
-:: %LIBRARY_PREFIX%\lib\qt6\uic. main does not install that executable; route it
-:: through the installed PySide6 wrapper on both Windows x86_64 and ARM64.
-if "%PXR_BUILD_USDVIEW%"=="ON" set CMAKE_ARGS=%CMAKE_ARGS% -DPYSIDEUICBINARY=%PREFIX%\Scripts\pyside6-uic.exe
+:: Anaconda: upstream looks for the Qt Designer uic executable using
+:: PYSIDEUICBINARY. On Anaconda main, PySide6's wrapper is patched to call
+:: %PREFIX%\Library\lib\qt6\uic.exe, but there is no `uic` on PATH inside the
+:: PySide6 package itself: the executable ships in qtbase-devel at
+:: %PREFIX%\Library\lib\qt6\uic.exe. Use it directly to avoid depending on
+:: the patched wrapper's hard-coded path.
+if "%PXR_BUILD_USDVIEW%"=="ON" (
+set CMAKE_ARGS=%CMAKE_ARGS% -DPYSIDEUICBINARY="%PREFIX%\Library\lib\qt6\uic.exe"
+)
 
 cmake %CMAKE_ARGS% ^
     -G "Ninja" ^
     -DCMAKE_INSTALL_PREFIX=%LIBRARY_PREFIX% ^
     -DCMAKE_BUILD_TYPE=Release ^
-    -DBUILD_TESTING:BOOL=ON ^
     -DBUILD_SHARED_LIBS:BOOL=ON ^
     -DPXR_HEADLESS_TEST_MODE:BOOL=ON ^
     -DPXR_BUILD_IMAGING:BOOL=ON ^
@@ -31,21 +35,19 @@ cmake %CMAKE_ARGS% ^
     -DPXR_BUILD_USDVIEW:BOOL=%PXR_BUILD_USDVIEW% ^
     -DPXR_BUILD_EXAMPLES:BOOL=%PXR_BUILD_EXAMPLES% ^
     -DPXR_ENABLE_PYTHON_SUPPORT=ON ^
-    -DCMAKE_EXPORT_NO_PACKAGE_REGISTRY:BOOL=ON ^
     -DPXR_PYTHON_SHEBANG="/usr/bin/env python" ^
     -DPXR_PYTHON_INSTALL_DIR=lib/python ^
     -DPython3_EXECUTABLE=%PYTHON% ^
-    -DPython_EXECUTABLE=%PYTHON% ^
     -DPXR_INSTALL_DLL_IN_BIN:BOOL=ON ^
     %SRC_DIR%
 if errorlevel 1 exit /b 1
 
 :: Build.
-cmake --build . --config Release
+cmake --build . --config Release --parallel %CPU_COUNT%
 if errorlevel 1 exit /b 1
 
 :: Install.
-cmake --build . --config Release --target install
+cmake --build . --config Release --parallel %CPU_COUNT% --target install
 if errorlevel 1 exit /b 1
 
 :: Test.

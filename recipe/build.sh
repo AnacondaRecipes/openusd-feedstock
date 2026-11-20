@@ -14,8 +14,7 @@ export CXXFLAGS="$(echo $CXXFLAGS | sed 's/-fvisibility-inlines-hidden//g')"
 
 # From https://conda-forge.org/docs/maintainer/knowledge_base/#finding-numpy-in-cross-compiled-python-packages-using-cmake
 Python_INCLUDE_DIR="$(python -c 'import sysconfig; print(sysconfig.get_path("include"))')"
-CMAKE_ARGS="${CMAKE_ARGS} -DPython_EXECUTABLE:PATH=${PYTHON}"
-CMAKE_ARGS="${CMAKE_ARGS} -DPython_INCLUDE_DIR:PATH=${Python_INCLUDE_DIR}"
+CMAKE_ARGS="${CMAKE_ARGS} -DPython3_EXECUTABLE:PATH=${PYTHON}"
 CMAKE_ARGS="${CMAKE_ARGS} -DPython3_EXECUTABLE:PATH=${PYTHON}"
 CMAKE_ARGS="${CMAKE_ARGS} -DPython3_INCLUDE_DIR:PATH=${Python_INCLUDE_DIR}"
 
@@ -30,10 +29,17 @@ if [[ "${target_platform}" == osx-* ]]; then
 fi
 
 # Anaconda: upstream looks for the Qt Designer uic executable using
-# PYSIDEUICBINARY. On main, PySide's wrapper invokes $PREFIX/lib/qt6/uic, but
-# qt-main no longer ships that executable. Point it at the PySide6 wrapper
-# installed with the host dependency.
-CMAKE_ARGS="${CMAKE_ARGS} -DPYSIDEUICBINARY=${PREFIX}/bin/pyside6-uic"
+# PYSIDEUICBINARY. On Anaconda main, PySide6's wrapper is patched to call
+# $PREFIX/lib/qt6/uic, but there is no `uic` inside the PySide6 package
+# itself. When uic is on PATH, use it directly to avoid depending on the
+# patched wrapper's hard-coded path.
+if command -v uic >/dev/null 2>&1; then
+    CMAKE_ARGS="${CMAKE_ARGS} -DPYSIDEUICBINARY=$(command -v uic)"
+elif [ -x "${PREFIX}/lib/qt6/uic" ]; then
+    CMAKE_ARGS="${CMAKE_ARGS} -DPYSIDEUICBINARY=${PREFIX}/lib/qt6/uic"
+else
+    CMAKE_ARGS="${CMAKE_ARGS} -DPYSIDEUICBINARY=${PREFIX}/bin/pyside6-uic"
+fi
 
 # PXR_PYTHON_INSTALL_DIR pins the Python bindings to lib/python (the hard-coded
 # location used before OpenUSD 26.08). As of 26.08 it defaults to a
@@ -41,17 +47,15 @@ CMAKE_ARGS="${CMAKE_ARGS} -DPYSIDEUICBINARY=${PREFIX}/bin/pyside6-uic"
 # step below.
 cmake ${CMAKE_ARGS} -GNinja .. \
       -DCMAKE_BUILD_TYPE=Release \
-      -DBUILD_TESTING:BOOL=ON \
       -DPXR_HEADLESS_TEST_MODE:BOOL=ON \
       -DPXR_BUILD_IMAGING:BOOL=ON \
       -DPXR_BUILD_USD_IMAGING:BOOL=ON \
       -DPXR_ENABLE_PYTHON_SUPPORT:BOOL=ON \
-      -DCMAKE_EXPORT_NO_PACKAGE_REGISTRY:BOOL=ON \
       -DPXR_PYTHON_SHEBANG="/usr/bin/env python" \
       -DPXR_PYTHON_INSTALL_DIR=lib/python
 
-cmake --build . --config Release
-cmake --build . --config Release --target install
+cmake --build . --config Release --parallel ${CPU_COUNT:-2}
+cmake --build . --config Release --parallel ${CPU_COUNT:-2} --target install
 
 # testWorkThreadLimits3 is disabled as it can fail on machines with few cores
 # testJsIO is disabled as it now actually links usd_tf, and so the linker remove the link to Python

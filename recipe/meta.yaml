@@ -39,21 +39,20 @@ requirements:
     - {{ compiler("cxx") }}
     - cmake >=3.26
     - ninja-base
-    # Anaconda: no cross-compilation, so the conda-forge cross-only inputs
-    # (cross-python_{{ target_platform }}, python, pyside6 on
-    # build_platform != target_platform) are not needed.
   host:
     - glfw {{ glfw }}
     - jinja2
     - libgl-devel  # [linux]
     - libglx-devel  # [linux]
-    - libopensubdiv {{ libopensubdiv }}  # analint: host_section_needs_exact_pinnings
+    - libopensubdiv {{ libopensubdiv }}
     # CMake configure requires PyOpenGL to enable the usdview build and tests.
     - pyopengl
     # Anaconda: PySide6 is a build input (pyside6-uic generates the usdview UI
-    # modules, and the usdviewq tests import pxr.Usdviewq).
+    # modules, and the usdviewq tests import pxr.Usdviewq). pyside6-uic uses
+    # the uic binary from qtbase-devel.
     - pyside6
     - python
+    - qtbase-devel
     - tbb-devel
     - xorg-libxrandr  # [linux]
 
@@ -74,6 +73,7 @@ outputs:
         # conda-forge's does, so this keeps Qt out of the C++ libraries should
         # that ever change here.
         - pyside6
+        - qtbase-devel
         - pyopengl
     files:
       include:
@@ -123,13 +123,14 @@ outputs:
         - jinja2
         - libgl-devel  # [linux]
         - libglx-devel  # [linux]
-        - libopensubdiv {{ libopensubdiv }}  # analint: host_section_needs_exact_pinnings
+        - libopensubdiv {{ libopensubdiv }}
         # CMake configure requires PyOpenGL to enable the usdview build and tests.
         - pyopengl
         # Anaconda: PySide6 is also required by configure (pyside6-uic creates
-        # generated sources).
+        # generated sources). pyside6-uic uses the uic binary from qtbase-devel.
         - pyside6
         - python
+        - qtbase-devel
         - tbb-devel
         - xorg-libxrandr  # [linux]
       run:
@@ -354,7 +355,7 @@ about:
   # The license is not OSI-approved or have an official SPDX identified, so we use LicenseRef-Tomorrow-Open-Source-Technology-License-1.0
   # openusd vendors several  other libraries, but all their licenses are listed in LICENSE.txt and listed in the following
   license: LicenseRef-Tomorrow-Open-Source-Technology-License-1.0 AND Apache-2.0 AND MIT AND BSD-2-Clause AND BSD-3-Clause AND JSON AND BSL-1.0
-  license_family: OTHER
+  license_family: Other
   license_file: LICENSE.txt
   summary: Library to read and write Universal Scene Description (USD) files.
   description: |
