@@ -7,13 +7,11 @@ cd build
 :: PXR_PYTHON_INSTALL_DIR pins the Python bindings to lib/python (the location
 :: used before OpenUSD 26.08). As of 26.08 it defaults to a Lib\site-packages
 :: layout, which would break the "move lib\python\pxr" step below.
-:: Anaconda: PyOpenGL has no win-arm64 build on Anaconda main and usdview
-:: imports it at runtime, so usdview is not built there. The extras examples are
-:: disabled as well because irExampleUsdviewPlugin is a python plugin that
-:: imports pxr.Usdviewq.qt and would otherwise be installed without Qt.
+:: Anaconda: the extras examples are disabled on win-arm64 because
+:: irExampleUsdviewPlugin is a python plugin that imports pxr.Usdviewq.qt and
+:: would otherwise be installed without Qt.
 set "PXR_BUILD_USDVIEW=ON"
 set "PXR_BUILD_EXAMPLES=ON"
-if "%target_platform%"=="win-arm64" set "PXR_BUILD_USDVIEW=OFF"
 if "%target_platform%"=="win-arm64" set "PXR_BUILD_EXAMPLES=OFF"
 
 :: Anaconda: PySide6's uic wrapper normally invokes

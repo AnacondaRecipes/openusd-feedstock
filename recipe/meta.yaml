@@ -49,7 +49,7 @@ requirements:
     - libglx-devel  # [linux]
     - libopensubdiv {{ libopensubdiv }}  # analint: host_section_needs_exact_pinnings
     # CMake configure requires PyOpenGL to enable the usdview build and tests.
-    - pyopengl  # [not (win and arm64)]
+    - pyopengl
     # Anaconda: PySide6 is a build input (pyside6-uic generates the usdview UI
     # modules, and the usdviewq tests import pxr.Usdviewq).
     - pyside6
@@ -125,7 +125,7 @@ outputs:
         - libglx-devel  # [linux]
         - libopensubdiv {{ libopensubdiv }}  # analint: host_section_needs_exact_pinnings
         # CMake configure requires PyOpenGL to enable the usdview build and tests.
-        - pyopengl  # [not (win and arm64)]
+        - pyopengl
         # Anaconda: PySide6 is also required by configure (pyside6-uic creates
         # generated sources).
         - pyside6
@@ -272,11 +272,6 @@ outputs:
   - name: openusd-usdview
     # Anaconda: usdview is the only consumer of PySide6/PyOpenGL, so it is
     # packaged separately and openusd/openusd-python no longer pull Qt.
-    build:
-      # Anaconda: usdview imports PyOpenGL at runtime and PyOpenGL has no
-      # win-arm64 build on Anaconda main, so bld.bat configures win-arm64 with
-      # -DPXR_BUILD_USDVIEW=OFF and this output does not exist there.
-      skip: true  # [win and arm64]
     files:
       include:
         - lib/python*/site-packages/pxr/Usdviewq/*
@@ -322,7 +317,7 @@ outputs:
         - {{ pin_subpackage("openusd-libs", exact=True) }}
         - {{ pin_subpackage("openusd-python", exact=True) }}
         - {{ pin_subpackage("openusd-tools", exact=True) }}
-        - {{ pin_subpackage("openusd-usdview", exact=True) }}  # [not (win and arm64)]
+        - {{ pin_subpackage("openusd-usdview", exact=True) }}
     test:
       files:
         - openusd_plugins_sanity_check.py
