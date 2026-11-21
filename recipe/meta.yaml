@@ -21,6 +21,8 @@ source:
     - patches/add_pxr_install_dll_in_bin.patch
     # Drop the hard-coded Python paths from pxrConfig.cmake.
     - patches/remove_hardcoded_prefix.patch
+    # Skip TfAtomicOfstreamWrapper's broken-symlink test without symlink privilege.
+    - patches/tf_atomicofstreamwrapper_skip_unavailable_symlink.patch
 
 build:
   number: 0
