@@ -27,6 +27,11 @@ build:
   # Upstream's PyPI packaging declares "Requires-Python: >=3.9, <3.15" and only
   # publishes cp39-cp314 wheels, so python 3.15 is not supported yet.
   skip: true  # [py>=315]
+  # usd-core's PyPI version is not derivable from the OpenUSD version
+  # (26.08 -> 26.8, but 26.11.1 -> 26.11). Pass it to the build scripts so the
+  # dist-info metadata matches the published PyPI version exactly.
+  script_env:
+    - USD_CORE_VERSION={{ usd_core_version }}
   # Keep top-level: an output-level build section overrides inherited build
   # metadata and would discard a sibling output-level run_exports.
   ignore_run_exports_from:
