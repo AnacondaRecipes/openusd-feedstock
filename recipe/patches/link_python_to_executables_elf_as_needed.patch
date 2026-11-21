@@ -1,3 +1,19 @@
+From: Onur Bingol <obingol@anaconda.com>
+Date: Fri, 20 Nov 2026 10:42:46 -0800
+Subject: [PATCH] Keep libpython linked to executables on Linux under -Wl,--as-needed
+
+Linux equivalent of link_python_to_executables.patch's existing -needed_library
+fix for macOS, which counters conda-forge's -dead_strip_dylibs the same way
+this counters conda-forge's -Wl,--as-needed. Executables that transitively
+link "python" (e.g. testJsIO, via tf) but reference no Python symbol of their
+own get libpython dropped by --as-needed, so GNU ld fails the link with
+"undefined reference" to CPython C API symbols left unresolved in
+usd_tf.so/usd_python.so by PXR_PY_UNDEFINED_DYNAMIC_LOOKUP (macOS instead
+fails at runtime, not link time, which is why the Apple fix alone wasn't
+enough here). --no-as-needed disables that pruning for such executables. See
+https://github.com/PixarAnimationStudios/OpenUSD/issues/2371 and
+https://github.com/PixarAnimationStudios/OpenUSD/issues/2568 for background.
+
 diff --git a/pxr/external/boost/python/CMakeLists.txt b/pxr/external/boost/python/CMakeLists.txt
 index 8f2466b..3333333 100644
 --- a/pxr/external/boost/python/CMakeLists.txt

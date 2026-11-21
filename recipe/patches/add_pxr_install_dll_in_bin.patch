@@ -1,3 +1,15 @@
+From 9454885c439073ace12b002f270777bbd0a60c5a Mon Sep 17 00:00:00 2001
+From: Silvio Traversaro <silvio@traversaro.it>
+Date: Sat, 17 May 2025 11:00:56 +0200
+Subject: [PATCH] Add PXR_INSTALL_DLL_IN_BIN CMake option to install .dll in
+ bin
+
+---
+ cmake/defaults/Options.cmake |  2 ++
+ cmake/macros/Private.cmake   | 26 +++++++++++++++++++++-----
+ cmake/macros/Public.cmake    | 19 +++++++++++++++----
+ 3 files changed, 38 insertions(+), 9 deletions(-)
+
 --- a/cmake/defaults/Options.cmake
 +++ b/cmake/defaults/Options.cmake
 @@ -39,6 +39,8 @@
