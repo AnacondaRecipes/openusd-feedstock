@@ -1,8 +1,9 @@
-{% set version = "26.08" %}
-{% set sha256 = "4bccbb95cddda1dbeef2f74a08b9456352f2aa91bfd4578c0c613009c7950149" %}
+{% set version = "26.11.1" %}
+{% set sha256 = "7670896e224ba18cd3cdb7cb58c149eea71af0d83c1120bc7040c1e581c1a559" %}
 
-# PyPI's usd-core drops the trailing zero. Keep in sync with version.
-{% set usd_core_version = "26.8" %}
+# Keep 'usd_core_version' in sync with 'version'.
+# PyPI's usd-core drops the trailing zero and uses the minor release version.
+{% set usd_core_version = "26.11" %}
 
 package:
   name: openusd-split
