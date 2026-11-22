@@ -94,9 +94,10 @@ rm -rf $PREFIX/share/usd/examples
 rm -rf $PREFIX/share/usd/tutorials
 
 # This logic is to ensure that pip list lists usd-core (https://pypi.org/project/usd-core/) as installed package
-# The version style is a bit different: openusd version are something like 22.01, 23.05.01, 24.11 while usd-core are 22.1, 23.5.1, 24.11
-# so we convert all occurences of .0 to . if present, to convert from one style to another
-PIP_USD_CORE_VERSION=${PKG_VERSION//\.0/.}
+# The version style is different (e.g. OpenUSD 26.08 -> usd-core 26.8, but
+# OpenUSD 26.11.1 -> usd-core 26.11), so the PyPI version is provided by the
+# recipe instead of being derived from PKG_VERSION here.
+PIP_USD_CORE_VERSION="${USD_CORE_VERSION}"
 
 # The METADATA file is necessary to ensure that pip list shows the pip package installed by conda
 # The INSTALLER file is necessary to ensure that pip list shows that the package is installed by conda

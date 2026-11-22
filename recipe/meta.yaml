@@ -1,8 +1,9 @@
-{% set version = "26.08" %}
-{% set sha256 = "4bccbb95cddda1dbeef2f74a08b9456352f2aa91bfd4578c0c613009c7950149" %}
+{% set version = "26.11.1" %}
+{% set sha256 = "7670896e224ba18cd3cdb7cb58c149eea71af0d83c1120bc7040c1e581c1a559" %}
 
-# PyPI's usd-core drops the trailing zero. Keep in sync with version.
-{% set usd_core_version = "26.8" %}
+# Keep 'usd_core_version' in sync with 'version'.
+# PyPI's usd-core drops the trailing zero and uses the minor release version.
+{% set usd_core_version = "26.11" %}
 
 package:
   name: openusd-split
@@ -20,12 +21,19 @@ source:
     - patches/add_pxr_install_dll_in_bin.patch
     # Drop the hard-coded Python paths from pxrConfig.cmake.
     - patches/remove_hardcoded_prefix.patch
+    # Skip TfAtomicOfstreamWrapper's broken-symlink test without symlink privilege.
+    - patches/tf_atomicofstreamwrapper_skip_unavailable_symlink.patch
 
 build:
   number: 0
-  # Upstream's PyPI packaging declares "Requires-Python: >=3.9, <3.15" and only
-  # publishes cp39-cp314 wheels, so python 3.15 is not supported yet.
-  skip: true  # [py>=315]
+  # Upstream's PyPI packaging declares "Requires-Python: >=3.11, <3.15" and only
+  # publishes cp311-cp314 wheels, so python 3.15 is not supported yet.
+  skip: true  # [py<311 or py>=315]
+  # usd-core's PyPI version is not derivable from the OpenUSD version
+  # (26.08 -> 26.8, but 26.11.1 -> 26.11). Pass it to the build scripts so the
+  # dist-info metadata matches the published PyPI version exactly.
+  script_env:
+    - USD_CORE_VERSION={{ usd_core_version }}
   # Keep top-level: an output-level build section overrides inherited build
   # metadata and would discard a sibling output-level run_exports.
   ignore_run_exports_from:
@@ -172,7 +180,10 @@ outputs:
         - if exist %LIBRARY_BIN%\usdview exit 1  # [win]
         # cmake-package-check is a conda-forge-only package, so the
         # find_package(pxr) check is done with a small consumer project instead.
-        - cmake -S cmake_consumer -B build -G Ninja
+        # Ninja is single-config, so --config Release below is ignored and MSVC
+        # defaults CMAKE_BUILD_TYPE to Debug; Debug defines _DEBUG, which makes
+        # TBB's MSVC autolink ask for the unshipped tbb12_debug.lib.
+        - cmake -S cmake_consumer -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
         - cmake --build build --config Release
         - build/pxr_consumer  # [unix]
         - build\pxr_consumer.exe  # [win]
