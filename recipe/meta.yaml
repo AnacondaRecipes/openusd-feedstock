@@ -1,0 +1,448 @@
+{% set version = "26.11.1" %}
+{% set sha256 = "7670896e224ba18cd3cdb7cb58c149eea71af0d83c1120bc7040c1e581c1a559" %}
+
+# Keep 'usd_core_version' in sync with 'version'.
+# PyPI's usd-core drops the trailing zero and uses the minor release version.
+{% set usd_core_version = "26.11" %}
+
+package:
+  name: openusd-split
+  version: {{ version }}
+
+source:
+  url: https://github.com/PixarAnimationStudios/OpenUSD/archive/refs/tags/v{{ version }}.tar.gz
+  sha256: {{ sha256 }}
+  patches:
+    # Link executables against Python3::Python even with undefined dynamic lookup.
+    - patches/link_python_to_executables.patch
+    # Same as link_python_to_executables.patch above, but for Linux's -Wl,--as-needed.
+    - patches/link_python_to_executables_elf_as_needed.patch
+    # Add PXR_INSTALL_DLL_IN_BIN to install DLLs next to the executables on Windows.
+    - patches/add_pxr_install_dll_in_bin.patch
+    # Drop the hard-coded Python paths from pxrConfig.cmake.
+    - patches/remove_hardcoded_prefix.patch
+    # Skip TfAtomicOfstreamWrapper's broken-symlink test without symlink privilege.
+    - patches/tf_atomicofstreamwrapper_skip_unavailable_symlink.patch
+
+build:
+  number: 0
+  # Upstream's PyPI packaging declares "Requires-Python: >=3.11, <3.15" and only
+  # publishes cp311-cp314 wheels, so python 3.15 is not supported yet.
+  skip: true  # [py<311 or py>=315]
+  # usd-core's PyPI version is not derivable from the OpenUSD version
+  # (26.08 -> 26.8, but 26.11.1 -> 26.11). Pass it to the build scripts so the
+  # dist-info metadata matches the published PyPI version exactly.
+  script_env:
+    - USD_CORE_VERSION={{ usd_core_version }}
+  # Keep top-level: an output-level build section overrides inherited build
+  # metadata and would discard a sibling output-level run_exports.
+  ignore_run_exports_from:
+    # qtbase-devel provides 'uic' binary for the build; don't propagate its qtbase run export.
+    - qtbase-devel
+  # openusd-python/openusd-tools/openusd-usdview have no compiler in their own
+  # requirements/build, so conda-build's overlinking check can't attribute
+  # libstdc++/libgcc_s to a package for them (openusd-libs is unaffected: it
+  # declares compiler('cxx')/compiler('c') and gets these via run_exports).
+  missing_dso_allowlist:  # [linux]
+    - "*/libstdc++.so*"  # [linux]
+    - "*/libgcc_s.so*"  # [linux]
+
+requirements:
+  # These are the inputs of the build: build.sh/bld.bat run in this environment.
+  build:
+    - {{ stdlib("c") }}
+    - {{ compiler("c") }}
+    - {{ compiler("cxx") }}
+    - cmake >=3.26
+    - ninja-base
+  host:
+    - glfw {{ glfw }}
+    - jinja2
+    - libgl-devel {{ libgl }}  # [linux]
+    - libglx-devel {{ libglx }}  # [linux]
+    - libopensubdiv {{ libopensubdiv }}  # analint: host_section_needs_exact_pinnings
+    # CMake configure requires PyOpenGL to enable the usdview build and tests.
+    - pyopengl
+    # PySide6 is a build input (pyside6-uic generates the usdview UI
+    # modules, and the usdviewq tests import pxr.Usdviewq). pyside6-uic uses
+    # the uic binary from qtbase-devel.
+    - pyside6
+    - python
+    - qtbase-devel
+    - tbb-devel {{ tbb }}  # analint: host_section_needs_exact_pinnings
+    - xorg-libx11 {{ xorg_libx11 }}  # [linux]
+    - xorg-libxrandr {{ xorg_libxrandr }}  # [linux]
+
+outputs:
+  # C++ libraries, headers, configs and plugin resources.
+  - name: openusd-libs
+    run_exports:
+      # The pxr C++ ABI changes across minor releases: everything that links
+      # libusd_* has to be rebuilt for a new 26.xx and must not use a newer one.
+      - {{ pin_subpackage("openusd-libs", max_pin="x.x") }}
+    files:
+      include:
+        - "**"
+      exclude:
+        # python bindings -> openusd-python
+        - lib/python*/site-packages/pxr/*
+        - lib/python*/site-packages/pxr/**/*
+        - "lib/python*/site-packages/usd_core-*.dist-info/*"
+        - "lib/python*/site-packages/usd_core-*.dist-info/**/*"
+        - Lib/site-packages/pxr/*  # [win]
+        - Lib/site-packages/pxr/**/*  # [win]
+        - "Lib/site-packages/usd_core-*.dist-info/*"  # [win]
+        - "Lib/site-packages/usd_core-*.dist-info/**/*"  # [win]
+        # command line tools -> openusd-tools / openusd-usdview. On unix bin/
+        # holds nothing but the tools; on Windows Library/bin also holds the
+        # DLLs and the plugin resources, so the tools are listed explicitly.
+        - bin/*  # [unix]
+        - Library/bin/*.cmd  # [win]
+        - Library/bin/*.exe  # [win]
+        # Extensionless Windows tool launchers are scripts; keep them with openusd-tools/usdview.
+        - Library/bin/hdGenSchema  # [win]
+        - Library/bin/testusdview  # [win]
+        - Library/bin/usddiff  # [win]
+        - Library/bin/usddumpcrate  # [win]
+        - Library/bin/usdedit  # [win]
+        - Library/bin/usdfixbrokenpixarschemas  # [win]
+        - Library/bin/usdGenSchema  # [win]
+        - Library/bin/usdgenschemafromsdr  # [win]
+        - Library/bin/usdInitSchema  # [win]
+        - Library/bin/usdmeasureperformance  # [win]
+        - Library/bin/usdrecord  # [win]
+        - Library/bin/usdresolve  # [win]
+        - Library/bin/usdstitch  # [win]
+        - Library/bin/usdstitchclips  # [win]
+        - Library/bin/usdupdatecrate  # [win]
+        - Library/bin/usdview  # [win]
+    requirements:
+      build:
+        - {{ stdlib("c") }}
+        - {{ compiler("c") }}
+        - {{ compiler("cxx") }}
+        - cmake >=3.26
+        - ninja-base
+      host:
+        - glfw {{ glfw }}
+        - libgl-devel {{ libgl }}  # [linux]
+        - libglx-devel {{ libglx }}  # [linux]
+        - libopensubdiv {{ libopensubdiv }}  # analint: host_section_needs_exact_pinnings
+        # CMake configure requires PyOpenGL to enable the usdview build and tests.
+        - pyopengl
+        # PySide6 is also required by configure (pyside6-uic creates
+        # generated sources). pyside6-uic uses the uic binary from qtbase-devel.
+        - pyside6
+        - python
+        - qtbase-devel
+        - tbb-devel {{ tbb }}  # analint: host_section_needs_exact_pinnings
+        - xorg-libx11 {{ xorg_libx11 }}  # [linux]
+        - xorg-libxrandr {{ xorg_libxrandr }}  # [linux]
+      run:
+        # the pxr CMake config shipped here does
+        # find_dependency(Python3 COMPONENTS Development), so python is a run
+        # dependency of the C++ libraries and not only of openusd-python.
+        - python
+        # libusd_glf.so/libusd_garch.so link libX11 directly (GLX); without
+        # this, overlinking fails since it's otherwise only a transitive
+        # build-time dep via libgl-devel/libglx-devel.
+        - xorg-libx11 {{ xorg_libx11 }}  # [linux]
+        # tbb-devel is needed at runtime too: find_package(pxr REQUIRED)
+        # needs it, and openusd exposes tbb's header-only symbols publicly,
+        # so consumers need a matching tbb-devel (max_pin="x.x" == V1's
+        # upper_bound="x.x"). See
+        # https://github.com/conda-forge/openusd-feedstock/issues/9
+        - {{ pin_compatible("tbb-devel", max_pin="x.x") }}
+    test:
+      # The consumer project is copied into info/recipe by conda-build.
+      files:
+        - cmake_consumer
+      requires:
+        - {{ compiler("c") }}
+        - {{ compiler("cxx") }}
+        - cmake
+        - ninja-base
+      commands:
+        - test -f $PREFIX/include/pxr/pxr.h  # [unix]
+        - test -f $PREFIX/pxrConfig.cmake  # [unix]
+        - test -f $PREFIX/lib/libusd_usd${SHLIB_EXT}  # [unix]
+        # plugin resources ship with the libraries (bin\usd on Windows, where
+        # the DLLs and their resources are installed next to each other)
+        - test -f $PREFIX/lib/usd/usd/resources/plugInfo.json  # [unix]
+        - if not exist %LIBRARY_BIN%\usd\usd\resources\plugInfo.json exit 1  # [win]
+        # the tools live in openusd-tools/openusd-usdview
+        - test ! -f $PREFIX/bin/usdcat  # [unix]
+        - test ! -f $PREFIX/bin/usdview  # [unix]
+        - if not exist %LIBRARY_INC%\pxr\pxr.h exit 1  # [win]
+        - if not exist %LIBRARY_PREFIX%\pxrConfig.cmake exit 1  # [win]
+        - if not exist %LIBRARY_BIN%\usd_usd.dll exit 1  # [win]
+        - if exist %LIBRARY_BIN%\usdcat.exe exit 1  # [win]
+        - if exist %LIBRARY_BIN%\usdview exit 1  # [win]
+        # cmake-package-check is a conda-forge-only package, so the
+        # find_package(pxr) check is done with a small consumer project instead.
+        # Ninja is single-config, so --config Release below is ignored and MSVC
+        # defaults CMAKE_BUILD_TYPE to Debug; Debug defines _DEBUG, which makes
+        # TBB's MSVC autolink ask for the unshipped tbb12_debug.lib.
+        - cmake -S cmake_consumer -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+        - cmake --build build --config Release
+        - build/pxr_consumer  # [unix]
+        - build\pxr_consumer.exe  # [win]
+    about:
+      license: LicenseRef-Tomorrow-Open-Source-Technology-License-1.0 AND Apache-2.0 AND MIT AND BSD-2-Clause AND BSD-3-Clause AND JSON AND BSL-1.0
+      license_family: Other
+      license_file: LICENSE.txt
+      summary: Library to read and write Universal Scene Description (USD) files.
+      description: |
+        The OpenUSD C++ libraries, headers, cmake configs and plugin resources.
+      home: https://github.com/PixarAnimationStudios/OpenUSD
+      dev_url: https://github.com/PixarAnimationStudios/OpenUSD
+      doc_url: https://openusd.org/release/index.html
+
+  # Python bindings (pxr package, without Usdviewq).
+  - name: openusd-python
+    run_exports:
+      - {{ pin_subpackage("openusd-libs", max_pin="x.x") }}
+    files:
+      include:
+        - lib/python*/site-packages/pxr/*
+        - lib/python*/site-packages/pxr/**/*
+        - "lib/python*/site-packages/usd_core-*.dist-info/*"
+        - "lib/python*/site-packages/usd_core-*.dist-info/**/*"
+        - Lib/site-packages/pxr/*  # [win]
+        - Lib/site-packages/pxr/**/*  # [win]
+        - "Lib/site-packages/usd_core-*.dist-info/*"  # [win]
+        - "Lib/site-packages/usd_core-*.dist-info/**/*"  # [win]
+      exclude:
+        # usdview and its Qt UI code -> openusd-usdview
+        - lib/python*/site-packages/pxr/Usdviewq/*
+        - lib/python*/site-packages/pxr/Usdviewq/**/*
+        - Lib/site-packages/pxr/Usdviewq/*  # [win]
+        - Lib/site-packages/pxr/Usdviewq/**/*  # [win]
+    requirements:
+      build:
+        - {{ stdlib("c") }}
+      host:
+        - python
+        # libusd_* live in openusd-libs; the pxr extensions link to them.
+        - {{ pin_subpackage("openusd-libs", exact=True) }}
+        - tbb-devel {{ tbb }}  # analint: host_section_needs_exact_pinnings
+      run:
+        - python
+        - {{ pin_subpackage("openusd-libs", exact=True) }}
+        # pxr extensions link to tbb and need it at runtime.
+        - tbb {{ tbb }}
+    test:
+      imports:
+        - pxr
+        - pxr.Usd
+        - pxr.UsdGeom
+      commands:
+        # round trip through both the ascii (usda) and the binary
+        # (usdc, i.e. the crate plugin) file formats, which is what the upstream
+        # test suite exercises for Sdf/Usd/Pcp.
+        - python -c "from pxr import Sdf, Usd, UsdGeom; s = Usd.Stage.CreateNew('roundtrip.usda'); p = UsdGeom.Xform.Define(s, '/World'); s.SetDefaultPrim(p.GetPrim()); s.GetRootLayer().Save(); t = Usd.Stage.Open('roundtrip.usda'); assert t.GetPrimAtPath('/World').IsValid(); assert str(t.GetDefaultPrim().GetPath()) == '/World'; assert isinstance(t.GetRootLayer(), Sdf.Layer)"
+        - python -c "from pxr import Usd, UsdGeom; s = Usd.Stage.CreateNew('roundtrip.usdc'); UsdGeom.Sphere.Define(s, '/World/Sphere'); s.GetRootLayer().Save(); t = Usd.Stage.Open('roundtrip.usdc'); assert t.GetPrimAtPath('/World/Sphere').IsValid(); assert str(t.GetPrimAtPath('/World/Sphere').GetTypeName()) == 'Sphere'"
+        # The dist-info shim written by build.sh/bld.bat is what makes the
+        # pip package name visible to pip and to python tooling.
+        - python -c "import importlib.metadata as m; assert m.version('usd-core') == '{{ usd_core_version }}'"
+    about:
+      license: LicenseRef-Tomorrow-Open-Source-Technology-License-1.0 AND Apache-2.0 AND MIT AND BSD-2-Clause AND BSD-3-Clause AND JSON AND BSL-1.0
+      license_family: Other
+      license_file: LICENSE.txt
+      summary: Library to read and write Universal Scene Description (USD) files.
+      description: |
+        The OpenUSD Python bindings. Import with 'from pxr import Usd'.
+      home: https://github.com/PixarAnimationStudios/OpenUSD
+      dev_url: https://github.com/PixarAnimationStudios/OpenUSD
+      doc_url: https://openusd.org/release/index.html
+
+  # Command-line tools (some tools are C++ and some of them are Python).
+  - name: openusd-tools
+    run_exports:
+      - {{ pin_subpackage("openusd-libs", max_pin="x.x") }}
+    files:
+      include:
+        - bin/*  # [unix]
+        - Library/bin/*.cmd  # [win]
+        - Library/bin/*.exe  # [win]
+        - Library/bin/hdGenSchema  # [win]
+        - Library/bin/usddiff  # [win]
+        - Library/bin/usddumpcrate  # [win]
+        - Library/bin/usdedit  # [win]
+        - Library/bin/usdfixbrokenpixarschemas  # [win]
+        - Library/bin/usdGenSchema  # [win]
+        - Library/bin/usdgenschemafromsdr  # [win]
+        - Library/bin/usdInitSchema  # [win]
+        - Library/bin/usdmeasureperformance  # [win]
+        - Library/bin/usdrecord  # [win]
+        - Library/bin/usdresolve  # [win]
+        - Library/bin/usdstitch  # [win]
+        - Library/bin/usdstitchclips  # [win]
+        - Library/bin/usdupdatecrate  # [win]
+      exclude:
+        # usdview and its test harness belong to openusd-usdview
+        - bin/usdview  # [unix]
+        - bin/testusdview  # [unix]
+        - Library/bin/usdview  # [win]
+        - Library/bin/usdview.cmd  # [win]
+        - Library/bin/testusdview  # [win]
+        - Library/bin/testusdview.cmd  # [win]
+    requirements:
+      build:
+        - {{ stdlib("c") }}
+      host:
+        - python
+        # The tools link to libusd_* from openusd-libs.
+        - {{ pin_subpackage("openusd-libs", exact=True) }}
+        - tbb-devel {{ tbb }}  # analint: host_section_needs_exact_pinnings
+      run:
+        - python
+        - {{ pin_subpackage("openusd-libs", exact=True) }}
+        - {{ pin_subpackage("openusd-python", exact=True) }}
+        - jinja2
+        # the tools (e.g. usdtree) link to tbb and need it at runtime.
+        - tbb {{ tbb }}
+    test:
+      files:
+        - openusd_make_stage.py
+      commands:
+        - usdcat --help
+        - usddiff --help
+        - usdrecord --help
+        - usdGenSchema --help
+        - usdresolve --help
+        # the tools have to work against the installed layout, so
+        # author a layer with the bindings (openusd-python is a dependency) and
+        # convert/validate it with the command-line tools.
+        - python openusd_make_stage.py tools.usda
+        - usdcat tools.usda
+        - usdcat -o tools.usdc tools.usda
+        - usdchecker tools.usdc
+    about:
+      license: LicenseRef-Tomorrow-Open-Source-Technology-License-1.0 AND Apache-2.0 AND MIT AND BSD-2-Clause AND BSD-3-Clause AND JSON AND BSL-1.0
+      license_family: Other
+      license_file: LICENSE.txt
+      summary: Library to read and write Universal Scene Description (USD) files.
+      description: |
+        The OpenUSD command-line tools.
+      home: https://github.com/PixarAnimationStudios/OpenUSD
+      dev_url: https://github.com/PixarAnimationStudios/OpenUSD
+      doc_url: https://openusd.org/release/index.html
+
+  # Qt-based usdview application (the only output that pulls PySide6/PyOpenGL).
+  - name: openusd-usdview
+    run_exports:
+      - {{ pin_subpackage("openusd-libs", max_pin="x.x") }}
+    files:
+      include:
+        - lib/python*/site-packages/pxr/Usdviewq/*
+        - lib/python*/site-packages/pxr/Usdviewq/**/*
+        - Lib/site-packages/pxr/Usdviewq/*  # [win]
+        - Lib/site-packages/pxr/Usdviewq/**/*  # [win]
+        - bin/usdview  # [unix]
+        - bin/testusdview  # [unix]
+        - Library/bin/usdview  # [win]
+        - Library/bin/usdview.cmd  # [win]
+        - Library/bin/testusdview  # [win]
+        - Library/bin/testusdview.cmd  # [win]
+    requirements:
+      build:
+        - {{ stdlib("c") }}
+      host:
+        - python
+        # usdview links to libusd_* and tbb.
+        - {{ pin_subpackage("openusd-libs", exact=True) }}
+        - tbb-devel {{ tbb }}  # analint: host_section_needs_exact_pinnings
+      run:
+        - python
+        - {{ pin_subpackage("openusd-libs", exact=True) }}
+        - {{ pin_subpackage("openusd-python", exact=True) }}
+        - pyside6
+        - pyopengl
+        # usdview (bin/usdview) links to tbb and needs it at runtime.
+        - tbb {{ tbb }}
+    test:
+      commands:
+        - usdview --help
+        - testusdview --help
+    about:
+      license: LicenseRef-Tomorrow-Open-Source-Technology-License-1.0 AND Apache-2.0 AND MIT AND BSD-2-Clause AND BSD-3-Clause AND JSON AND BSL-1.0
+      license_family: Other
+      license_file: LICENSE.txt
+      summary: Library to read and write Universal Scene Description (USD) files.
+      description: |
+        The Qt-based usdview application.
+      home: https://github.com/PixarAnimationStudios/OpenUSD
+      dev_url: https://github.com/PixarAnimationStudios/OpenUSD
+      doc_url: https://openusd.org/release/index.html
+
+  # PyPI-name metapackage for the Python bindings.
+  - name: usd-core
+    requirements:
+      host:
+        - python
+      run:
+        - python
+        - {{ pin_subpackage("openusd-python", exact=True) }}
+    test:
+      imports:
+        - pxr
+        - pxr.Usd
+        - pxr.UsdGeom
+    about:
+      license: LicenseRef-Tomorrow-Open-Source-Technology-License-1.0 AND Apache-2.0 AND MIT AND BSD-2-Clause AND BSD-3-Clause AND JSON AND BSL-1.0
+      license_family: Other
+      license_file: LICENSE.txt
+      summary: Library to read and write Universal Scene Description (USD) files.
+      description: |
+        Metapackage for the OpenUSD Python bindings under their PyPI name.
+      home: https://github.com/PixarAnimationStudios/OpenUSD
+      dev_url: https://github.com/PixarAnimationStudios/OpenUSD
+      doc_url: https://openusd.org/release/index.html
+
+  # Full-install metapackage (libs, Python, tools and usdview).
+  - name: openusd
+    requirements:
+      host:
+        - python
+      run:
+        - python
+        - {{ pin_subpackage("openusd-libs", exact=True) }}
+        - {{ pin_subpackage("openusd-python", exact=True) }}
+        - {{ pin_subpackage("openusd-tools", exact=True) }}
+        - {{ pin_subpackage("openusd-usdview", exact=True) }}
+    test:
+      files:
+        - openusd_plugins_sanity_check.py
+        - openusd_make_stage.py
+      commands:
+        # Loading every registered plugin needs the full install (C++ libraries,
+        # python bindings and their resources), which is what this metapackage is.
+        - python openusd_plugins_sanity_check.py 40
+        # end to end check across the outputs: the ascii file is
+        # authored with the python bindings and validated by usdchecker
+        # that ships in openusd-libs.
+        - python openusd_make_stage.py check.usda
+        - usdchecker check.usda
+
+about:
+  # Tomorrow Open Source Technology License 1.0 has no official SPDX ID.
+  license: LicenseRef-Tomorrow-Open-Source-Technology-License-1.0 AND Apache-2.0 AND MIT AND BSD-2-Clause AND BSD-3-Clause AND JSON AND BSL-1.0
+  license_family: Other
+  license_file: LICENSE.txt
+  summary: Library to read and write Universal Scene Description (USD) files.
+  description: |
+    Universal Scene Description (OpenUSD) is a system for authoring, composing
+    and reading hierarchically organized scene description.
+  home: https://github.com/PixarAnimationStudios/OpenUSD
+  dev_url: https://github.com/PixarAnimationStudios/OpenUSD
+  doc_url: https://openusd.org/release/index.html
+
+extra:
+  skip-lints:
+    # Split native-library and Python/tool outputs are tested with package-specific commands.
+    - missing_imports_or_run_test_py
+  recipe-maintainers:
+    - oursland
+    - traversaro
+    - onurbingol

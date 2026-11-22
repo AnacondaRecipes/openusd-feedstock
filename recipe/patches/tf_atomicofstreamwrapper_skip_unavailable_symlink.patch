@@ -1,0 +1,52 @@
+From: Onur Bingol <obingol@anaconda.com>
+Date: Sat, 21 Nov 2026 23:53:46 +0000
+Subject: [PATCH] Skip the broken-symlink case of TfAtomicOfstreamWrapper when
+ symlinks are unavailable
+
+TestErrorCases assumes TfSymlink always succeeds, but creating a symlink on
+Windows requires SeCreateSymbolicLinkPrivilege (administrator or Developer
+Mode). The failing TF_AXIOM then aborts testTf with exit code 134, failing the
+whole ctest entry. The same limitation is already handled elsewhere:
+testenv/fileUtils.cpp stops testing symlinks after TfSymlink fails with EPERM,
+and TestCommitSymlink in this file is guarded by ARCH_OS_WINDOWS with "Windows
+has issues with the create symlink privilege". Only this block was missed
+upstream. Keep the remaining TestErrorCases assertions running and skip just
+the broken-symlink check when the symlink cannot be created.
+
+Anaconda: fixes the TfAtomicOfstreamWrapper build-time test failure on Windows.
+
+diff --git a/pxr/base/tf/testenv/atomicOfstreamWrapper.cpp b/pxr/base/tf/testenv/atomicOfstreamWrapper.cpp
+--- a/pxr/base/tf/testenv/atomicOfstreamWrapper.cpp
++++ b/pxr/base/tf/testenv/atomicOfstreamWrapper.cpp
+@@ -59,6 +59,9 @@
+     }
+ 
+     // Can't open files beneath a broken symlink
++    // Anaconda: creating a symlink requires a privilege that is not available
++    // on some Windows build machines, so skip this case there, as
++    // testenv/fileUtils.cpp does.
+     {
+         if (TfPathExists("broken_symlink")) {
+             TF_AXIOM(ArchUnlinkFile("broken_symlink") == 0);
+@@ -68,16 +71,19 @@
+         }
+ 
+         TF_AXIOM(TfMakeDir("dir-does-not-exist"));
+-        TF_AXIOM(TfSymlink("dir-does-not-exist", "broken_symlink"));
++        const bool createdSymlink =
++            TfSymlink("dir-does-not-exist", "broken_symlink");
+         TF_AXIOM(ArchRmDir("dir-does-not-exist") == 0);
+ 
+-        {
++        if (createdSymlink) {
+             std::string error;
+             TfAtomicOfstreamWrapper wrapper("broken_symlink/foo.txt");
+             const bool openedBrokenSymlink = wrapper.Open(&error);
+
+             fprintf(stderr, "Expected error: %s\n", error.c_str());
+             TF_AXIOM(!openedBrokenSymlink);
++        } else {
++            TF_WARN("Not testing atomic writes beneath a broken symlink");
+         }
+     }
+ }
