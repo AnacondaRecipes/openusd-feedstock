@@ -180,7 +180,10 @@ outputs:
         - if exist %LIBRARY_BIN%\usdview exit 1  # [win]
         # cmake-package-check is a conda-forge-only package, so the
         # find_package(pxr) check is done with a small consumer project instead.
-        - cmake -S cmake_consumer -B build -G Ninja
+        # Ninja is single-config, so --config Release below is ignored and MSVC
+        # defaults CMAKE_BUILD_TYPE to Debug; Debug defines _DEBUG, which makes
+        # TBB's MSVC autolink ask for the unshipped tbb12_debug.lib.
+        - cmake -S cmake_consumer -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
         - cmake --build build --config Release
         - build/pxr_consumer  # [unix]
         - build\pxr_consumer.exe  # [win]
